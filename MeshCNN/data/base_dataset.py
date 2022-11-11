@@ -31,7 +31,7 @@ class BaseDataset(data.Dataset):
             mean, std = np.array(0), np.array(0)
             for i, data in enumerate(self):
                 if i % 500 == 0:
-                    print('{} of {}'.format(i, self.size))
+                    print(f'{i} of {self.size}')
                 features = data['edge_features']
                 mean = mean + features.mean(axis=1)
                 std = std + features.std(axis=1)
@@ -56,8 +56,5 @@ def collate_fn(batch):
     """Creates mini-batch tensors
     We should build custom collate_fn rather than using default collate_fn
     """
-    meta = {}
     keys = batch[0].keys()
-    for key in keys:
-        meta.update({key: np.array([d[key] for d in batch])})
-    return meta
+    return {key: np.array([d[key] for d in batch]) for key in keys}

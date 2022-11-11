@@ -15,19 +15,23 @@ def main():
     NO_OP = False
     j= 0
     ms = pymeshlab.MeshSet()
-    if not NO_OP:
-        p = os.path.join(ROOTDIR, '*', '*.obj')
-    else:
-        p = os.path.join(ROOTDIR, '*.obj')
+    p = (
+        os.path.join(ROOTDIR, '*.obj')
+        if NO_OP
+        else os.path.join(ROOTDIR, '*', '*.obj')
+    )
+
     for filepath in tqdm(glob.iglob(p)):
         for File in os.listdir(os.path.dirname(filepath)):
             # use this for headspace landmarks
-            if all([File.endswith(".txt") and File.startswith("ldmks")]) and os.path.exists(filepath[:-4] + '.bmp'):
+            if all(
+                [File.endswith(".txt") and File.startswith("ldmks")]
+            ) and os.path.exists(f'{filepath[:-4]}.bmp'):
             # use this for manual landmarks
             #if all([File.endswith(".csv") and File.startswith("ldmks")]) and os.path.exists(filepath[:-4] + '.bmp'):
                 j += 1
-                print("loading " + filepath)
-                print(str(j))
+                print(f"loading {filepath}")
+                print(j)
                 ms.load_new_mesh(filepath)
                 try:
                     ms.texel_sampling(recovercolor=True)
@@ -35,18 +39,25 @@ def main():
                     pass
                 ms.point_cloud_simplification(samplenum=60000)
                 #ms.save_current_mesh(filepath[:-4] + '_simplfd.obj', save_textures=False)
-                print("saving " + filepath)
-                ms.save_current_mesh(filepath[:-4] + '.obj', save_textures=True)
+                print(f"saving {filepath}")
+                ms.save_current_mesh(f'{filepath[:-4]}.obj', save_textures=True)
 
-                with open(filepath[:-4] + '.obj', mode='r+') as f:
-                    verts = ""
+                with open(f'{filepath[:-4]}.obj', mode='r+') as f:
                     lines = f.readlines()
-                    for i in range(len(lines)):
-                        if lines[i].startswith('v '):
-                            verts += lines[i][2:]
+                    verts = "".join(
+                        lines[i][2:]
+                        for i in range(len(lines))
+                        if lines[i].startswith('v ')
+                    )
+
                     verts = verts.replace(' ', ',')
                     folder_num = Path(filepath).parts[-2]
-                    new_filepath = os.path.join(NEW_FOLDER, folder_num, Path(filepath).parts[-1][:-3] + 'txt')
+                    new_filepath = os.path.join(
+                        NEW_FOLDER,
+                        folder_num,
+                        f'{Path(filepath).parts[-1][:-3]}txt',
+                    )
+
 
                     os.makedirs(os.path.dirname(new_filepath), exist_ok=True)
                     x = open(new_filepath, "w+")

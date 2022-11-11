@@ -38,7 +38,7 @@ def main():
         # process lowres pointcloud file
         #lines = open(filepath, 'r').read().split('\n')[:-1]
         #verts = [[float(l) for l in lines[j].split(',')[:3]] for j in range(len(lines))]
-        
+
         verts = np.loadtxt(filepath, delimiter=',')
 
         # only keep selected landmarks
@@ -69,7 +69,7 @@ def main():
                             shortest_dist = dist
                 dist_list[j] = shortest_dist
                 # running mean
-                print('running mean {}'.format(np.mean(dist_list[:j])))
+                print(f'running mean {np.mean(dist_list[:j])}')
             print(np.mean(dist_list))
 
         # identify landmark coordinates for file
@@ -112,7 +112,7 @@ def main():
                 # print(pcl_hres_region.shape)
 
                 # save highres pcl for each landmark
-                dir = os.path.join(SAVE_DIR, folder_num + '_' + str(o), str(m))
+                dir = os.path.join(SAVE_DIR, f'{folder_num}_{str(o)}', str(m))
                 if not os.path.exists(dir):
                     os.makedirs(dir)
                 #np.savetxt(os.path.join(dir, os.path.basename(filepath)[:-3] + 'txt'), X=pcl_hres_region, fmt='%10.7f',

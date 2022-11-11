@@ -23,8 +23,9 @@ def dist_between_points(pointcl, idx_origin, idx_target):
     """
     origin = pointcl[idx_origin]
     target = pointcl[idx_target]
-    distance = eucl_dist(origin[0], origin[1], origin[2], target[0], target[1], target[2])
-    return distance
+    return eucl_dist(
+        origin[0], origin[1], origin[2], target[0], target[1], target[2]
+    )
 
 
 def closest_ldmk_dist(pcl, ldmks):
@@ -56,6 +57,9 @@ def main():
     rootdir = '/Volumes/Extreme SSD/MscProject/no-op/no_op_manual_labels'
     PRINT_MEAN_DIST = True
 
+    LANDMARK_INDICES = [8, 27, 30, 31, 33, 35, 36, 39, 42, 45, 60, 64]
+
+
     # per file
     #   per landmark
     #       take point in point cloud (origin) with smallest distance to landmark point (target)
@@ -78,11 +82,8 @@ def main():
                 break
         ldmks_per_file = ldmks[ldmks_idx, 1:, :]  # shape (landmarks, 3)
 
-        LANDMARK_INDICES = [8, 27, 30, 31, 33, 35, 36, 39, 42, 45, 60, 64]
-
-
         # ldmks_per_file = ldmks_per_file[LANDMARK_INDICES]
-        
+
         if PRINT_MEAN_DIST:
             # calculate mean distance between vertices
             a = len(pcl)
@@ -149,15 +150,18 @@ def main():
                         continue
 
                     # if array does not exist create new with else concatenate
-                    if output.size == 0:
-                        output = np.array([[n, activation]])
-                    else:
-                        output = np.append(output, np.array([[n, activation]]), axis=0)
+                    output = (
+                        np.array([[n, activation]])
+                        if output.size == 0
+                        else np.append(
+                            output, np.array([[n, activation]]), axis=0
+                        )
+                    )
+
+                elif output.size == 0:
+                    output = np.array([[np.nan, np.nan]])
                 else:
-                    if output.size == 0:
-                        output = np.array([[np.nan, np.nan]])
-                    else:
-                        output = np.append(output, np.array([[np.nan, np.nan]]), axis=0)
+                    output = np.append(output, np.array([[np.nan, np.nan]]), axis=0)
 
             print(np.unique(output[:,1], return_counts = True))
             output_list.append(output)

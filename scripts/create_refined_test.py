@@ -45,6 +45,7 @@ def main():
     # LANDMARK_INDICES = [33]
     # searchpath = 'test/*/13*.txt'
     searchpath = os.path.join('test', '*', '13*.txt')
+    method = 'radius'
     for fp_pred in glob.iglob(os.path.join(PREDS_DIR, searchpath)):
         # find folder num
         folder_num = Path(fp_pred).parts[-2]
@@ -55,13 +56,13 @@ def main():
         verts = np.array(verts)
 
         # open predictions
-        with open(os.path.join(PREDS_DIR, 'preds', 'hmap_per_class{}.pkl'.format(folder_num)), 'rb') as f:
+        with open(os.path.join(PREDS_DIR, 'preds', f'hmap_per_class{folder_num}.pkl'), 'rb') as f:
             preds = pickle.load(f)
         preds = np.transpose(preds)
         # go through each landmark (class) in preds array, save only the maximum activation among all classes and save
         # the class with the maximum activation
         preds_sparse = np.zeros((preds.shape[1], 2))  # shape (vertices, 2)
-        for i in tqdm(range(len(preds))):
+        for _ in tqdm(range(len(preds))):
             max_act = np.amax(preds, axis=0)  # shape (vertices,)
             preds_sparse[:, 0] = max_act
             max_act_cl = np.argmax(preds, axis=0)
@@ -71,7 +72,7 @@ def main():
         #  create a region for each landmark
         # for i in range(preds.shape[1]):
         for i in range(12):
-            print('landmark {}'.format(i))
+            print(f'landmark {i}')
             # only take vertices where prediction in that landmark channel is bigger than value
             verts_refined_mask = (preds_sparse[:, 1] == i) & (preds_sparse[:, 0] > 0.1)
             verts_refined = verts[verts_refined_mask]
@@ -92,12 +93,11 @@ def main():
                 assert j == 0, "More than one highres .obj file found"
 
             high_res_points, _ = pp3d.read_mesh(fp_hres)
-            print('preds points higher 0.1 {}'.format(len(verts_refined)))
+            print(f'preds points higher 0.1 {len(verts_refined)}')
 
             if len(verts_refined) == 0:
                 print('exception: not enough confident predictions in highres')
 
-            method = 'radius'
             high_res_region = []
             high_res_region_mask = np.full((len(high_res_points)), False, dtype=bool)
             if method == 'delaunay':
@@ -108,7 +108,7 @@ def main():
                     if hull.find_simplex(coords) >= 0:
                         high_res_region.append(coords)
                         high_res_region_mask[k] = True
-                print('highres points in hull {}'.format(len(high_res_region)))
+                print(f'highres points in hull {len(high_res_region)}')
 
             elif method == 'minmaxxyz':
                 xmin, xmax, ymin, ymax, zmin, zmax = verts_refined[:, 0].min(), verts_refined[:, 0].max(), \
@@ -173,8 +173,12 @@ def main():
             dir = os.path.join(SAVE_DIR, folder_num, str(i))
             if not os.path.exists(dir):
                 os.makedirs(dir)
-            np.savetxt(os.path.join(dir, os.path.basename(fp_pred)[:-3] + 'txt'), X=high_res_region_np, fmt='%10.7f',
-                       delimiter=',')
+            np.savetxt(
+                os.path.join(dir, f'{os.path.basename(fp_pred)[:-3]}txt'),
+                X=high_res_region_np,
+                fmt='%10.7f',
+                delimiter=',',
+            )
 
 
 if __name__ == "__main__":

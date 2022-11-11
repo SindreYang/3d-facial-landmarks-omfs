@@ -62,12 +62,21 @@ use_rgb = False
 base_path = os.path.dirname(__file__)
 dataset_path = os.path.join(base_path, args.data_dir)
 op_cache_dir = os.path.join(dataset_path, "op_cache")
-pretrain_path = os.path.join(dataset_path, "pretrained_models/headspace_ldmks_{}_{}x{}.pth".format(input_features,
-                                                                                                   n_block, c_width))
-last_model_path = os.path.join(dataset_path, "saved_models/headspace_ldmks_last_{}_{}x{}.pth".format(input_features,
-                                                                                                     n_block, c_width))
-best_model_path = os.path.join(dataset_path, "saved_models/headspace_ldmks_best_{}_{}x{}.pth".format(input_features,
-                                                                                                     n_block, c_width))
+pretrain_path = os.path.join(
+    dataset_path,
+    f"pretrained_models/headspace_ldmks_{input_features}_{n_block}x{c_width}.pth",
+)
+
+last_model_path = os.path.join(
+    dataset_path,
+    f"saved_models/headspace_ldmks_last_{input_features}_{n_block}x{c_width}.pth",
+)
+
+best_model_path = os.path.join(
+    dataset_path,
+    f"saved_models/headspace_ldmks_best_{input_features}_{n_block}x{c_width}.pth",
+)
+
 
 # === Load datasets
 
@@ -100,7 +109,7 @@ model = model.to(device)
 
 if not train:
     # load the pretrained model
-    print("Loading pretrained model from: " + str(pretrain_path))
+    print(f"Loading pretrained model from: {str(pretrain_path)}")
     if torch.cuda.is_available():
         model.load_state_dict(torch.load(pretrain_path))
     else:
@@ -175,22 +184,18 @@ def train_epoch(epoch):
            verts = diffusion_net.utils.random_rotate_points_y(verts)
 
         # Construct features
-        if input_features == 'xyz':
-            features = torch.cat((verts.float(), rgb.float()), dim=1) if use_rgb else verts
-        elif input_features == 'hks':
+        if input_features == 'hks':
             features = diffusion_net.geometry.compute_hks_autoscale(evals, evecs, 16)
 
+        elif input_features == 'xyz':
+            features = torch.cat((verts.float(), rgb.float()), dim=1) if use_rgb else verts
         # Apply the model
         preds = model(features.float(), mass, L=L, evals=evals, evecs=evecs, gradX=gradX, gradY=gradY, faces=faces)
 
         # preds = preds.float()
         predstp = torch.transpose(preds, 0, 1)
         predstp = predstp.flatten()
-        if len(labels) != 0:
-            labels = torch.cat([x for x in labels])
-        else:
-            labels = torch.Tensor([])
-
+        labels = torch.cat(list(labels)) if len(labels) != 0 else torch.Tensor([])
         weights = point_weights(labels)
 
 
@@ -229,31 +234,41 @@ def test():
             gradX = gradX.to(device)
             gradY = gradY.to(device)
             labels = labels.to(device)
-            
+
             # Randomly rotate positions
             if augment_random_rotate:
                 verts = diffusion_net.utils.random_rotate_points(verts)
 
             # Construct features
-            if input_features == 'xyz':
-                features = torch.cat((verts, rgb.float()), dim=1) if use_rgb else verts
-            elif input_features == 'hks':
-                features = diffusion_net.geometry.compute_hks_autoscale(evals, evecs, 16) if not use_rgb else torch.cat((diffusion_net.geometry.compute_hks_autoscale(evals,evecs,16), rgb.float()), dim=1)
+            if input_features == 'hks':
+                features = (
+                    torch.cat(
+                        (
+                            diffusion_net.geometry.compute_hks_autoscale(
+                                evals, evecs, 16
+                            ),
+                            rgb.float(),
+                        ),
+                        dim=1,
+                    )
+                    if use_rgb
+                    else diffusion_net.geometry.compute_hks_autoscale(
+                        evals, evecs, 16
+                    )
+                )
 
+
+            elif input_features == 'xyz':
+                features = torch.cat((verts, rgb.float()), dim=1) if use_rgb else verts
             # Apply the model
             preds = model(features, mass, L=L, evals=evals, evecs=evecs, gradX=gradX, gradY=gradY, faces=faces)
             predstp = torch.transpose(preds, 0, 1)
             predstp = predstp.flatten()
 
             diffusion_net.utils.ensure_dir_exists(os.path.join(dataset_path, 'preds'))
-            f = open(dataset_path + '/preds/hmap_per_class' + str(folder_num) + ".pkl", "wb+")
-            pickle.dump(np.asarray(preds.cpu()), f)
-            f.close()
-
-            if len(labels) != 0:
-                labels = torch.cat([x for x in labels])
-            else:
-                labels = torch.Tensor([])
+            with open(f'{dataset_path}/preds/hmap_per_class{str(folder_num)}.pkl', "wb+") as f:
+                pickle.dump(np.asarray(preds.cpu()), f)
+            labels = torch.cat(list(labels)) if len(labels) != 0 else torch.Tensor([])
             if not args.test_without_score:
                 weights = point_weights(labels)
                 loss_sum += weighted_mse_loss(predstp.to(device), labels.to(device), weights.to(device))
@@ -268,21 +283,21 @@ if train:
     for epoch in range(n_epoch):
         train_acc = train_epoch(epoch)
         test_acc = test()
-        print("Epoch {} - Train overall: {}  Test overall: {}".format(epoch, train_acc, test_acc))
+        print(f"Epoch {epoch} - Train overall: {train_acc}  Test overall: {test_acc}")
         diffusion_net.utils.ensure_dir_exists(os.path.join(dataset_path, 'saved_models'))
         if epoch % 10 == 0:
-            print(" ==> saving last model to " + last_model_path)
+            print(f" ==> saving last model to {last_model_path}")
             torch.save(model.state_dict(), last_model_path)
         if test_acc < best_acc:
             best_acc = test_acc
-            print(" ==> saving model to " + best_model_path)
+            print(f" ==> saving model to {best_model_path}")
             diffusion_net.utils.ensure_dir_exists(os.path.join(dataset_path, 'saved_models'))
             torch.save(model.state_dict(), best_model_path)
 
-    print(" ==> saving last model to " + last_model_path)
+    print(f" ==> saving last model to {last_model_path}")
     torch.save(model.state_dict(), last_model_path)
 
 
 # Test
 test_acc = test()
-print("Overall test accuracy: {}".format(test_acc))
+print(f"Overall test accuracy: {test_acc}")

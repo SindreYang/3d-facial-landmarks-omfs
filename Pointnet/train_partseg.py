@@ -2,6 +2,7 @@
 Author: Benny
 Date: Nov 2019
 """
+
 import argparse
 import os
 import torch
@@ -26,7 +27,7 @@ seg_classes = {'Earphone': [16, 17, 18], 'Motorbike': [30, 31, 32, 33, 34, 35], 
                'Guitar': [19, 20, 21], 'Bag': [4, 5], 'Lamp': [24, 25, 26, 27], 'Table': [47, 48, 49],
                'Airplane': [0, 1, 2, 3], 'Pistol': [38, 39, 40], 'Chair': [12, 13, 14, 15], 'Knife': [22, 23]}
 seg_label_to_cat = {}  # {0:Airplane, 1:Airplane, ...49:Table}
-for cat in seg_classes.keys():
+for cat in seg_classes:
     for label in seg_classes[cat]:
         seg_label_to_cat[label] = cat
 
@@ -39,9 +40,7 @@ def inplace_relu(m):
 def to_categorical(y, num_classes):
     """ 1-hot encodes a tensor """
     new_y = torch.eye(num_classes)[y.cpu().data.numpy(),]
-    if (y.is_cuda):
-        return new_y.cuda()
-    return new_y
+    return new_y.cuda() if y.is_cuda else new_y
 
 
 def parse_args():

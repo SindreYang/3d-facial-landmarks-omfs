@@ -9,9 +9,9 @@ scripts for unit testing
 
 
 def get_data(dset):
-    dpaths = glob.glob('./datasets/{}*'.format(dset))
+    dpaths = glob.glob(f'./datasets/{dset}*')
     [shutil.rmtree(d) for d in dpaths]
-    cmd = './scripts/{}/get_data.sh > /dev/null 2>&1'.format(dset)
+    cmd = f'./scripts/{dset}/get_data.sh > /dev/null 2>&1'
     os.system(cmd)
 
 def add_args(file, temp_file, new_args):
@@ -25,25 +25,27 @@ def add_args(file, temp_file, new_args):
         f.writelines(tokens)
 
 def run_train(dset):
-    train_file = './scripts/{}/train.sh'.format(dset)
-    temp_train_file = './scripts/{}/train_temp.sh'.format(dset)
+    train_file = f'./scripts/{dset}/train.sh'
+    temp_train_file = f'./scripts/{dset}/train_temp.sh'
     p = subprocess.run(['cp', '-p', '--preserve', train_file, temp_train_file])
     add_args(train_file, temp_train_file, ['--niter_decay 0 \\\n', '--niter 1 \\\n', '--max_dataset_size 2 \\\n', '--gpu_ids -1 \\'])
-    cmd = "bash -c 'source ~/anaconda3/bin/activate ~/anaconda3/envs/meshcnn && {} > /dev/null 2>&1'".format(temp_train_file)
+    cmd = f"bash -c 'source ~/anaconda3/bin/activate ~/anaconda3/envs/meshcnn && {temp_train_file} > /dev/null 2>&1'"
+
     os.system(cmd)
     os.remove(temp_train_file)
 
 def get_pretrained(dset):
-    cmd = './scripts/{}/get_pretrained.sh > /dev/null 2>&1'.format(dset)
+    cmd = f'./scripts/{dset}/get_pretrained.sh > /dev/null 2>&1'
     os.system(cmd)
 
 def run_test(dset):
-    test_file = './scripts/{}/test.sh'.format(dset)
-    temp_test_file = './scripts/{}/test_temp.sh'.format(dset)
+    test_file = f'./scripts/{dset}/test.sh'
+    temp_test_file = f'./scripts/{dset}/test_temp.sh'
     p = subprocess.run(['cp', '-p', '--preserve', test_file, temp_test_file])
     add_args(test_file, temp_test_file, ['--gpu_ids -1 \\'])
     # now run inference
-    cmd = "bash -c 'source ~/anaconda3/bin/activate ~/anaconda3/envs/meshcnn && {}'".format(temp_test_file)
+    cmd = f"bash -c 'source ~/anaconda3/bin/activate ~/anaconda3/envs/meshcnn && {temp_test_file}'"
+
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
     (_out, err) = proc.communicate()
     out = str(_out)
@@ -52,10 +54,10 @@ def run_test(dset):
     idf1 = '%]'
     accs = token[:token.find(idf1)]
     acc = float(accs)
-    if dset == 'shrec':
-        assert acc == 99.167, "shrec accuracy was {} and not 99.167".format(acc)
     if dset == 'human_seg':
-        assert acc == 92.554, "human_seg accuracy was {} and not 92.554".format(acc)
+        assert acc == 92.554, f"human_seg accuracy was {acc} and not 92.554"
+    elif dset == 'shrec':
+        assert acc == 99.167, f"shrec accuracy was {acc} and not 99.167"
     os.remove(temp_test_file)
 
 def run_dataset(dset):

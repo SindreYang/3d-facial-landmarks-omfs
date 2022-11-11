@@ -128,9 +128,8 @@ class PointNetEncoder(nn.Module):
         x = x.view(-1, 1024)
         if self.global_feat:
             return x, trans, trans_feat
-        else:
-            x = x.view(-1, 1024, 1).repeat(1, 1, N)
-            return torch.cat([x, pointfeat], 1), trans, trans_feat
+        x = x.view(-1, 1024, 1).repeat(1, 1, N)
+        return torch.cat([x, pointfeat], 1), trans, trans_feat
 
 
 def feature_transform_reguliarzer(trans):
@@ -138,5 +137,6 @@ def feature_transform_reguliarzer(trans):
     I = torch.eye(d)[None, :, :]
     if trans.is_cuda:
         I = I.cuda()
-    loss = torch.mean(torch.norm(torch.bmm(trans, trans.transpose(2, 1)) - I, dim=(1, 2)))
-    return loss
+    return torch.mean(
+        torch.norm(torch.bmm(trans, trans.transpose(2, 1)) - I, dim=(1, 2))
+    )

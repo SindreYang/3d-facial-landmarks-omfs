@@ -35,8 +35,7 @@ class MeshPool(nn.Module):
         if self.__multi_thread:
             for mesh_index in range(len(meshes)):
                 pool_threads[mesh_index].join()
-        out_features = torch.cat(self.__updated_fe).view(len(meshes), -1, self.__out_target)
-        return out_features
+        return torch.cat(self.__updated_fe).view(len(meshes), -1, self.__out_target)
 
     def __pool_main(self, mesh_index):
         mesh = self.__meshes[mesh_index]
@@ -86,10 +85,10 @@ class MeshPool(nn.Module):
 
     @staticmethod
     def has_boundaries(mesh, edge_id):
-        for edge in mesh.gemm_edges[edge_id]:
-            if edge == -1 or -1 in mesh.gemm_edges[edge]:
-                return True
-        return False
+        return any(
+            edge == -1 or -1 in mesh.gemm_edges[edge]
+            for edge in mesh.gemm_edges[edge_id]
+        )
 
 
     @staticmethod
@@ -119,23 +118,22 @@ class MeshPool(nn.Module):
         shared_items = MeshPool.__get_shared_items(other_keys_a, other_keys_b)
         if len(shared_items) == 0:
             return []
-        else:
-            assert (len(shared_items) == 2)
-            middle_edge = other_keys_a[shared_items[0]]
-            update_key_a = other_keys_a[1 - shared_items[0]]
-            update_key_b = other_keys_b[1 - shared_items[1]]
-            update_side_a = mesh.sides[key_a, other_side_a + 1 - shared_items[0]]
-            update_side_b = mesh.sides[key_b, other_side_b + 1 - shared_items[1]]
-            MeshPool.__redirect_edges(mesh, edge_id, side, update_key_a, update_side_a)
-            MeshPool.__redirect_edges(mesh, edge_id, side + 1, update_key_b, update_side_b)
-            MeshPool.__redirect_edges(mesh, update_key_a, MeshPool.__get_other_side(update_side_a), update_key_b, MeshPool.__get_other_side(update_side_b))
-            MeshPool.__union_groups(mesh, edge_groups, key_a, edge_id)
-            MeshPool.__union_groups(mesh, edge_groups, key_b, edge_id)
-            MeshPool.__union_groups(mesh, edge_groups, key_a, update_key_a)
-            MeshPool.__union_groups(mesh, edge_groups, middle_edge, update_key_a)
-            MeshPool.__union_groups(mesh, edge_groups, key_b, update_key_b)
-            MeshPool.__union_groups(mesh, edge_groups, middle_edge, update_key_b)
-            return [key_a, key_b, middle_edge]
+        assert (len(shared_items) == 2)
+        middle_edge = other_keys_a[shared_items[0]]
+        update_key_a = other_keys_a[1 - shared_items[0]]
+        update_key_b = other_keys_b[1 - shared_items[1]]
+        update_side_a = mesh.sides[key_a, other_side_a + 1 - shared_items[0]]
+        update_side_b = mesh.sides[key_b, other_side_b + 1 - shared_items[1]]
+        MeshPool.__redirect_edges(mesh, edge_id, side, update_key_a, update_side_a)
+        MeshPool.__redirect_edges(mesh, edge_id, side + 1, update_key_b, update_side_b)
+        MeshPool.__redirect_edges(mesh, update_key_a, MeshPool.__get_other_side(update_side_a), update_key_b, MeshPool.__get_other_side(update_side_b))
+        MeshPool.__union_groups(mesh, edge_groups, key_a, edge_id)
+        MeshPool.__union_groups(mesh, edge_groups, key_b, edge_id)
+        MeshPool.__union_groups(mesh, edge_groups, key_a, update_key_a)
+        MeshPool.__union_groups(mesh, edge_groups, middle_edge, update_key_a)
+        MeshPool.__union_groups(mesh, edge_groups, key_b, update_key_b)
+        MeshPool.__union_groups(mesh, edge_groups, middle_edge, update_key_b)
+        return [key_a, key_b, middle_edge]
 
     @staticmethod
     def __redirect_edges(mesh, edge_a_key, side_a, edge_b_key, side_b):

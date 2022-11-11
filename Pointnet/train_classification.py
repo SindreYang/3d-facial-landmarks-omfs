@@ -114,7 +114,7 @@ def main(args):
     logger = logging.getLogger("Model")
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    file_handler = logging.FileHandler('%s/%s.txt' % (log_dir, args.model))
+    file_handler = logging.FileHandler(f'{log_dir}/{args.model}.txt')
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
@@ -139,7 +139,7 @@ def main(args):
     '''MODEL LOADING'''
     num_class = args.num_category
     model = importlib.import_module(args.model)
-    shutil.copy('./models/%s.py' % args.model, str(exp_dir))
+    shutil.copy(f'./models/{args.model}.py', str(exp_dir))
     shutil.copy('models/pointnet2_utils.py', str(exp_dir))
     shutil.copy('./train_classification.py', str(exp_dir))
 
@@ -153,7 +153,7 @@ def main(args):
 
     if args.continue_train:
         try:
-            checkpoint = torch.load(str(exp_dir) + '/checkpoints/best_model.pth')
+            checkpoint = torch.load(f'{str(exp_dir)}/checkpoints/best_model.pth')
             start_epoch = checkpoint['epoch']
             classifier.load_state_dict(checkpoint['model_state_dict'])
             log_string('Use pretrain model')
@@ -244,7 +244,7 @@ def main(args):
             #savepath = str(checkpoints_dir) + '/best_model.pth'
             #log_string('Saving at %s' % savepath)
             #torch.save(state, savepath)
-            print("loss " + str(loss))
+            print(f"loss {str(loss)}")
             global_epoch += 1
 
     logger.info('End of training...')

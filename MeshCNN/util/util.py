@@ -37,9 +37,7 @@ def print_network(net):
         network
     """
     print('---------- Network initialized -------------')
-    num_params = 0
-    for param in net.parameters():
-        num_params += param.numel()
+    num_params = sum(param.numel() for param in net.parameters())
     print('[Network] Total number of parameters : %.3f M' % (num_params / 1e6))
     print('-----------------------------------------------')
 
@@ -59,10 +57,7 @@ def normalize_np_array(np_array):
 
 
 def calculate_entropy(np_array):
-    entropy = 0
     np_array /= np.sum(np_array)
-    for a in np_array:
-        if a != 0:
-            entropy -= a * np.log(a)
+    entropy = 0 - sum(a * np.log(a) for a in np_array if a != 0)
     entropy /= np.log(np_array.shape[0])
     return entropy

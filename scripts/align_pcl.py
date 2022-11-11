@@ -19,8 +19,7 @@ def rotation_matrix_from_vectors(vec1, vec2):
     c = np.dot(a, b)
     s = np.linalg.norm(v)
     kmat = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
-    rotation_matrix = np.eye(3) + kmat + kmat.dot(kmat) * ((1 - c) / (s ** 2))
-    return rotation_matrix
+    return np.eye(3) + kmat + kmat.dot(kmat) * ((1 - c) / (s ** 2))
 
 
 def main():
@@ -40,9 +39,7 @@ def main():
 
     if TRANSFORM_LDMKS:
         # count files
-        i = 0
-        for filepath in glob.iglob(p):
-            i += 1
+        i = sum(1 for _ in glob.iglob(p))
         transf_ldmks_all = np.zeros((i, 69, 3))
 
     for n, filepath in enumerate(tqdm.tqdm(glob.iglob(p))):
@@ -73,7 +70,7 @@ def main():
                     ldmks_idx = i
                     break
             ldmks_per_file = LDMKS[ldmks_idx, 1:, :]  # shape (landmarks, 3)
-        
+
             exr = ldmks_per_file[36]  # vec origin
             exl = ldmks_per_file[45]  # vec target
             pg = ldmks_per_file[8]  # vec origin
@@ -83,7 +80,7 @@ def main():
         pcl[:,0] -= ns[0]
         pcl[:,1] -= ns[1]
         pcl[:,2] -= ns[2]
-        
+
         # align x with exr - exl
         R_X = rotation_matrix_from_vectors(np.array([exl[0] - exr[0], exl[1] - exr[1], exl[2] - exr[2]]),
                                         np.array([1, 0, 0]))

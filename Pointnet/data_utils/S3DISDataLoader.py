@@ -14,9 +14,9 @@ class S3DISDataset(Dataset):
         rooms = sorted(os.listdir(data_root))
         rooms = [room for room in rooms if 'Area_' in room]
         if split == 'train':
-            rooms_split = [room for room in rooms if not 'Area_{}'.format(test_area) in room]
+            rooms_split = [room for room in rooms if f'Area_{test_area}' not in room]
         else:
-            rooms_split = [room for room in rooms if 'Area_{}'.format(test_area) in room]
+            rooms_split = [room for room in rooms if f'Area_{test_area}' in room]
 
         self.room_points, self.room_labels = [], []
         self.room_coord_min, self.room_coord_max = [], []
@@ -43,7 +43,7 @@ class S3DISDataset(Dataset):
         for index in range(len(rooms_split)):
             room_idxs.extend([index] * int(round(sample_prob[index] * num_iter)))
         self.room_idxs = np.array(room_idxs)
-        print("Totally {} samples in {} set.".format(len(self.room_idxs), split))
+        print(f"Totally {len(self.room_idxs)} samples in {split} set.")
 
     def __getitem__(self, idx):
         room_idx = self.room_idxs[idx]
@@ -126,8 +126,8 @@ class ScannetDatasetWholeScene():
         grid_x = int(np.ceil(float(coord_max[0] - coord_min[0] - self.block_size) / self.stride) + 1)
         grid_y = int(np.ceil(float(coord_max[1] - coord_min[1] - self.block_size) / self.stride) + 1)
         data_room, label_room, sample_weight, index_room = np.array([]), np.array([]), np.array([]),  np.array([])
-        for index_y in range(0, grid_y):
-            for index_x in range(0, grid_x):
+        for index_y in range(grid_y):
+            for index_x in range(grid_x):
                 s_x = coord_min[0] + index_x * self.stride
                 e_x = min(s_x + self.block_size, coord_max[0])
                 s_x = e_x - self.block_size
@@ -141,7 +141,7 @@ class ScannetDatasetWholeScene():
                     continue
                 num_batch = int(np.ceil(point_idxs.size / self.block_points))
                 point_size = int(num_batch * self.block_points)
-                replace = False if (point_size - point_idxs.size <= point_idxs.size) else True
+                replace = point_size - point_idxs.size > point_idxs.size
                 point_idxs_repeat = np.random.choice(point_idxs, point_size - point_idxs.size, replace=replace)
                 point_idxs = np.concatenate((point_idxs, point_idxs_repeat))
                 np.random.shuffle(point_idxs)

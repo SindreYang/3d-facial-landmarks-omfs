@@ -26,20 +26,20 @@ class PartNormalDataset(Dataset):
             for line in f:
                 ls = line.strip().split()
                 self.cat[ls[0]] = ls[1]
-        self.cat = {k: v for k, v in self.cat.items()}
+        self.cat = dict(self.cat)
         self.classes_original = dict(zip(self.cat, range(len(self.cat))))
 
-        if not class_choice is  None:
+        if class_choice is not None:
             self.cat = {k:v for k,v in self.cat.items() if k in class_choice}
         # print(self.cat)
 
         self.meta = {}
         with open(os.path.join(self.root, 'train_test_split', 'shuffled_train_file_list.json'), 'r') as f:
-            train_ids = set([str(d.split('/')[2]) for d in json.load(f)])
+            train_ids = {str(d.split('/')[2]) for d in json.load(f)}
         with open(os.path.join(self.root, 'train_test_split', 'shuffled_val_file_list.json'), 'r') as f:
-            val_ids = set([str(d.split('/')[2]) for d in json.load(f)])
+            val_ids = {str(d.split('/')[2]) for d in json.load(f)}
         with open(os.path.join(self.root, 'train_test_split', 'shuffled_test_file_list.json'), 'r') as f:
-            test_ids = set([str(d.split('/')[2]) for d in json.load(f)])
+            test_ids = {str(d.split('/')[2]) for d in json.load(f)}
         for item in self.cat:
             # print('category', item)
             self.meta[item] = []
@@ -47,29 +47,27 @@ class PartNormalDataset(Dataset):
             fns = sorted(os.listdir(dir_point))
             # print(fns[0][0:-4])
             if split == 'trainval':
-                fns = [fn for fn in fns if ((fn[0:-4] in train_ids) or (fn[0:-4] in val_ids))]
+                fns = [fn for fn in fns if fn[:-4] in train_ids or fn[:-4] in val_ids]
             elif split == 'train':
-                fns = [fn for fn in fns if fn[0:-4] in train_ids]
+                fns = [fn for fn in fns if fn[:-4] in train_ids]
             elif split == 'val':
-                fns = [fn for fn in fns if fn[0:-4] in val_ids]
+                fns = [fn for fn in fns if fn[:-4] in val_ids]
             elif split == 'test':
-                fns = [fn for fn in fns if fn[0:-4] in test_ids]
+                fns = [fn for fn in fns if fn[:-4] in test_ids]
             else:
-                print('Unknown split: %s. Exiting..' % (split))
+                print(f'Unknown split: {split}. Exiting..')
                 exit(-1)
 
             # print(os.path.basename(fns))
             for fn in fns:
                 token = (os.path.splitext(os.path.basename(fn))[0])
-                self.meta[item].append(os.path.join(dir_point, token + '.txt'))
+                self.meta[item].append(os.path.join(dir_point, f'{token}.txt'))
 
         self.datapath = []
         for item in self.cat:
-            for fn in self.meta[item]:
-                self.datapath.append((item, fn))
-
+            self.datapath.extend((item, fn) for fn in self.meta[item])
         self.classes = {}
-        for i in self.cat.keys():
+        for i in self.cat:
             self.classes[i] = self.classes_original[i]
 
         # Mapping from category ('Chair') to a list of int [10,11,12,13] as segmentation labels
@@ -95,10 +93,7 @@ class PartNormalDataset(Dataset):
             cls = self.classes[cat]
             cls = np.array([cls]).astype(np.int32)
             data = np.loadtxt(fn[1]).astype(np.float32)
-            if not self.normal_channel:
-                point_set = data[:, 0:3]
-            else:
-                point_set = data[:, 0:6]
+            point_set = data[:, 0:6] if self.normal_channel else data[:, 0:3]
             seg = data[:, -1].astype(np.int32)
             if len(self.cache) < self.cache_size:
                 self.cache[index] = (point_set, cls, seg)

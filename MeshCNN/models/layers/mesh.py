@@ -59,11 +59,8 @@ class Mesh:
         new_indices[-1] = -1
         new_indices[edges_mask] = np.arange(0, np.ma.where(edges_mask)[0].shape[0])
         self.gemm_edges[:, :] = new_indices[self.gemm_edges[:, :]]
-        for v_index, ve in enumerate(self.ve):
-            update_ve = []
-            # if self.v_mask[v_index]:
-            for e in ve:
-                update_ve.append(new_indices[e])
+        for ve in self.ve:
+            update_ve = [new_indices[e] for e in ve]
             new_ve.append(update_ve)
         self.ve = new_ve
         self.__clean_history(groups, torch_mask)
@@ -73,11 +70,10 @@ class Mesh:
 
     def export(self, file=None, vcolor=None):
         if file is None:
-            if self.export_folder:
-                filename, file_extension = os.path.splitext(self.filename)
-                file = '%s/%s_%d%s' % (self.export_folder, filename, self.pool_count, file_extension)
-            else:
+            if not self.export_folder:
                 return
+            filename, file_extension = os.path.splitext(self.filename)
+            file = '%s/%s_%d%s' % (self.export_folder, filename, self.pool_count, file_extension)
         faces = []
         vs = self.vs[self.v_mask]
         gemm = np.array(self.gemm_edges)
@@ -85,8 +81,7 @@ class Mesh:
         new_indices[self.v_mask] = np.arange(0, np.ma.where(self.v_mask)[0].shape[0])
         for edge_index in range(len(gemm)):
             cycles = self.__get_cycle(gemm, edge_index)
-            for cycle in cycles:
-                faces.append(self.__cycle_to_face(cycle, new_indices))
+            faces.extend(self.__cycle_to_face(cycle, new_indices) for cycle in cycles)
         with open(file, 'w+') as f:
             for vi, v in enumerate(vs):
                 vcol = ' %f %f %f' % (vcolor[vi, 0], vcolor[vi, 1], vcolor[vi, 2]) if vcolor is not None else ''
@@ -127,10 +122,10 @@ class Mesh:
         for j in range(2):
             next_side = start_point = j * 2
             next_key = edge_id
-            if gemm[edge_id, start_point] == -1:
+            if gemm[next_key, start_point] == -1:
                 continue
             cycles.append([])
-            for i in range(3):
+            for _ in range(3):
                 tmp_next_key = gemm[next_key, next_side]
                 tmp_next_side = self.sides[next_key, next_side]
                 tmp_next_side = tmp_next_side + 1 - 2 * (tmp_next_side % 2)
@@ -183,7 +178,7 @@ class Mesh:
         if self.history_data is not None:
             mask = self.history_data['old2current'] != -1
             self.history_data['old2current'][mask] = np.arange(self.edges_count, dtype=np.int32)
-            self.history_data['current2old'][0: self.edges_count] = np.ma.where(mask)[0]
+            self.history_data['current2old'][:self.edges_count] = np.ma.where(mask)[0]
             if self.export_folder != '':
                 self.history_data['edges_mask'].append(self.history_data['edges_mask'][-1].clone())
             self.history_data['occurrences'].append(groups.get_occurrences())

@@ -10,7 +10,12 @@ class SegmentationData(BaseDataset):
     def __init__(self, opt):
         BaseDataset.__init__(self, opt)
         self.opt = opt
-        self.device = torch.device('cuda:{}'.format(opt.gpu_ids[0])) if opt.gpu_ids else torch.device('cpu')
+        self.device = (
+            torch.device(f'cuda:{opt.gpu_ids[0]}')
+            if opt.gpu_ids
+            else torch.device('cpu')
+        )
+
         self.root = opt.dataroot
         self.dir = os.path.join(opt.dataroot, opt.phase)
         self.paths = self.make_dataset(self.dir)
@@ -27,8 +32,7 @@ class SegmentationData(BaseDataset):
     def __getitem__(self, index):
         path = self.paths[index]
         mesh = Mesh(file=path, opt=self.opt, hold_history=True, export_folder=self.opt.export_folder)
-        meta = {}
-        meta['mesh'] = mesh
+        meta = {'mesh': mesh}
         label = read_seg(self.seg_paths[index]) - self.offset
         label = pad(label, self.opt.ninput_edges, val=-1, dim=0)
         meta['label'] = label
@@ -68,7 +72,7 @@ class SegmentationData(BaseDataset):
     @staticmethod
     def make_dataset(path):
         meshes = []
-        assert os.path.isdir(path), '%s is not a valid directory' % path
+        assert os.path.isdir(path), f'{path} is not a valid directory'
 
         for root, _, fnames in sorted(os.walk(path)):
             for fname in fnames:
@@ -80,8 +84,7 @@ class SegmentationData(BaseDataset):
 
 
 def read_seg(seg):
-    seg_labels = np.loadtxt(open(seg, 'r'), dtype='float64')
-    return seg_labels
+    return np.loadtxt(open(seg, 'r'), dtype='float64')
 
 
 def read_sseg(sseg_file):

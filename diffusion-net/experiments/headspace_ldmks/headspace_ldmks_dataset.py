@@ -44,11 +44,15 @@ class HeadspaceLdmksDataset(Dataset):
         for filepath in glob.iglob(os.path.join(self.root_dir, 'train' if self.train else 'test') + filepattern):
             self.num_samples += 1
             mesh_files.append(filepath)
-        print("loading {} meshes".format(len(mesh_files)))
+        print(f"loading {len(mesh_files)} meshes")
 
+        # create sparse labels
+
+        #landmark_indices = {8,27,30,31,33,35,36,39,45,42,60,64} # indices start with 1
+        landmark_indices = {8,27,30,33,36,39,42,45,60,64} # indices start with 1
         # Load the actual files
         for iFile in range(len(mesh_files)):
-            print("loading mesh " + str(mesh_files[iFile]))
+            print(f"loading mesh {str(mesh_files[iFile])}")
             if data_format == 'mesh':
                 verts, faces = pp3d.read_mesh(mesh_files[iFile])
             else: # 'pcl'
@@ -57,10 +61,11 @@ class HeadspaceLdmksDataset(Dataset):
                 rgb = verts.to_numpy()[:, 3:]
                 verts = verts.to_numpy()[:, :3]
                 faces = np.array([])
-            if not self.no_op:
-                folder_num = Path(mesh_files[iFile]).parts[-2]
-            else:
-                folder_num = Path(mesh_files[iFile]).parts[-1]
+            folder_num = (
+                Path(mesh_files[iFile]).parts[-1]
+                if self.no_op
+                else Path(mesh_files[iFile]).parts[-2]
+            )
 
             # to torch
             verts = torch.tensor(np.ascontiguousarray(verts)).float()
@@ -71,10 +76,6 @@ class HeadspaceLdmksDataset(Dataset):
 
             self.folder_num_list.append(folder_num)
 
-            # create sparse labels
-            
-            #landmark_indices = {8,27,30,31,33,35,36,39,45,42,60,64} # indices start with 1
-            landmark_indices = {8,27,30,33,36,39,42,45,60,64} # indices start with 1
             #landmark_indices = {30, 39, 42, 60, 64}
             #landmark_indices = {30}
 
@@ -91,32 +92,35 @@ class HeadspaceLdmksDataset(Dataset):
 
 
             # if this file is not cached, populate
-            if not os.path.isfile(os.path.join(self.cache_dir, '{}.pt'.format(folder_num))):
+            if not os.path.isfile(
+                os.path.join(self.cache_dir, f'{folder_num}.pt')
+            ):
                 # Precompute operators
                 diffusion_net.utils.ensure_dir_exists(self.cache_dir)
                 frames, massvec, L, evals, evecs, gradX, gradY = diffusion_net.geometry.populate_cache(
                     verts, faces, k_eig=self.k_eig, op_cache_dir=self.op_cache_dir)
                 torch.save((verts, faces, rgb, labels, frames, massvec, L,
                             evals, evecs, gradX, gradY), os.path.join(self.cache_dir, folder_num + ".pt"))
-            
-            if self.train:
-                if self.augment_mirror:
-                    self.num_samples += 1
-                    folder_num = folder_num + '_mirror'
-                    self.folder_num_list.append(folder_num)
 
-                    # create mirrored pcl and mirrored landmark heatmaps
-                    verts = diffusion_net.geometry.mirror(verts, labels)
-                    mesh_files.append(filepath)
+            if self.train and self.augment_mirror:
+                self.num_samples += 1
+                folder_num = folder_num + '_mirror'
+                self.folder_num_list.append(folder_num)
+
+                # create mirrored pcl and mirrored landmark heatmaps
+                verts = diffusion_net.geometry.mirror(verts, labels)
+                mesh_files.append(filepath)
 
                     # if this file is not cached, populate
-                    if not os.path.isfile(os.path.join(self.cache_dir, '{}.pt'.format(folder_num))):
-                        # Precompute operators
-                        diffusion_net.utils.ensure_dir_exists(self.cache_dir)
-                        frames, massvec, L, evals, evecs, gradX, gradY = diffusion_net.geometry.populate_cache(
-                            verts, faces, k_eig=self.k_eig, op_cache_dir=self.op_cache_dir)
-                        torch.save((verts, faces, rgb, labels, frames, massvec, L,
-                                    evals, evecs, gradX, gradY), os.path.join(self.cache_dir, folder_num + ".pt"))
+                if not os.path.isfile(
+                    os.path.join(self.cache_dir, f'{folder_num}.pt')
+                ):
+                    # Precompute operators
+                    diffusion_net.utils.ensure_dir_exists(self.cache_dir)
+                    frames, massvec, L, evals, evecs, gradX, gradY = diffusion_net.geometry.populate_cache(
+                        verts, faces, k_eig=self.k_eig, op_cache_dir=self.op_cache_dir)
+                    torch.save((verts, faces, rgb, labels, frames, massvec, L,
+                                evals, evecs, gradX, gradY), os.path.join(self.cache_dir, folder_num + ".pt"))
 
                 
 

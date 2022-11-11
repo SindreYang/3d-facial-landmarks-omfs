@@ -29,8 +29,7 @@ class Process:
         bpy.ops.import_scene.obj(filepath=obj_file, axis_forward='-Z', axis_up='Y', filter_glob="*.obj;*.mtl", use_edges=True,
                                  use_smooth_groups=True, use_split_objects=False, use_split_groups=False,
                                  use_groups_as_vgroups=False, use_image_search=True, split_mode='ON')
-        ob = bpy.context.selected_objects[0]
-        return ob
+        return bpy.context.selected_objects[0]
 
     def subsurf(self, mesh):
         # subdivide mesh
@@ -52,7 +51,7 @@ class Process:
             self.subsurf(mesh)
             nfaces = len(mesh.data.polygons)
         ratio = target_faces / float(nfaces)
-        mod.ratio = float('%s' % ('%.6g' % (ratio)))
+        mod.ratio = float(f"{'%.6g' % ratio}")
         print('faces: ', mod.face_count, mod.ratio)
         bpy.ops.object.modifier_apply(modifier=mod.name)
 

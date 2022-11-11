@@ -42,21 +42,21 @@ class HeadspaceLdmksDataset(Dataset):
         for filepath in glob.iglob(os.path.join(self.root_dir, ('train' if self.train else ('validation' if self.validate else 'test')), filepattern)):
             self.num_samples += 1
             mesh_files.append(filepath)
-        print("loading {} meshes".format(len(mesh_files)))
+        print(f"loading {len(mesh_files)} meshes")
 
         # Load the actual files
-        for iFile in range(len(mesh_files)):
-            print("loading mesh " + str(mesh_files[iFile]))
+        for mesh_file in mesh_files:
+            print(f"loading mesh {str(mesh_file)}")
             if data_format == 'mesh':
-                verts, faces = pp3d.read_mesh(mesh_files[iFile])
+                verts, faces = pp3d.read_mesh(mesh_file)
             else:  # 'pcl'
-                verts = np.loadtxt(mesh_files[iFile], delimiter=',')
+                verts = np.loadtxt(mesh_file, delimiter=',')
 
 
 
                 faces = np.array([])
-            folder_num = Path(mesh_files[iFile]).parts[-3]
-            folder_num_lmkd = Path(mesh_files[iFile]).parts[-2]
+            folder_num = Path(mesh_file).parts[-3]
+            folder_num_lmkd = Path(mesh_file).parts[-2]
             if len(verts) == 0:
                 raise Exception('verts len is 0')
             # to torch
@@ -70,14 +70,19 @@ class HeadspaceLdmksDataset(Dataset):
             self.folder_num_ldmk_list.append(folder_num_lmkd)
 
             # if this file is not cached, populate
-            if not os.path.isfile(os.path.join(self.cache_dir, '{}_{}.pt'.format(folder_num, folder_num_lmkd))):
+            if not os.path.isfile(
+                os.path.join(self.cache_dir, f'{folder_num}_{folder_num_lmkd}.pt')
+            ):
                 # Precompute operators
                 diffusion_net.utils.ensure_dir_exists(self.cache_dir)
                 frames, massvec, L, evals, evecs, gradX, gradY = diffusion_net.geometry.populate_cache(
                     verts, faces, k_eig=self.k_eig, op_cache_dir=self.op_cache_dir)
-                torch.save((verts, faces, frames, massvec, L,
-                            evals, evecs, gradX, gradY), os.path.join(self.cache_dir,
-                                                                      '{}_{}.pt'.format(folder_num, folder_num_lmkd)))
+                torch.save(
+                    (verts, faces, frames, massvec, L, evals, evecs, gradX, gradY),
+                    os.path.join(
+                        self.cache_dir, f'{folder_num}_{folder_num_lmkd}.pt'
+                    ),
+                )
 
     def __len__(self):
         return self.num_samples
@@ -86,10 +91,10 @@ class HeadspaceLdmksDataset(Dataset):
         folder_num = self.folder_num_list[idx]
         folder_num_ldmk = self.folder_num_ldmk_list[idx]
         path_cache = os.path.join(self.cache_dir, folder_num, folder_num_ldmk)
-        verts, faces, frames, massvec, L, evals, evecs, gradX, gradY = torch.load(os.path.join(self.cache_dir,
-                                                                                               '{}_{}.pt'.format(
-                                                                                                   folder_num,
-                                                                                                   folder_num_ldmk)))
+        verts, faces, frames, massvec, L, evals, evecs, gradX, gradY = torch.load(
+            os.path.join(self.cache_dir, f'{folder_num}_{folder_num_ldmk}.pt')
+        )
+
 
         # create sparse labels
         # landmark_indices = {8,27,30,33,36,39,45,42,60,64} # indices start with 1
