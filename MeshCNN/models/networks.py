@@ -24,18 +24,21 @@ def get_norm_layer(norm_type='instance', num_groups=1):
     elif norm_type == 'none':
         norm_layer = NoNorm
     else:
-        raise NotImplementedError('normalization layer [%s] is not found' % norm_type)
+        raise NotImplementedError(f'normalization layer [{norm_type}] is not found')
     return norm_layer
 
 def get_norm_args(norm_layer, nfeats_list):
     if hasattr(norm_layer, '__name__') and norm_layer.__name__ == 'NoNorm':
-        norm_args = [{'fake': True} for f in nfeats_list]
+        norm_args = [{'fake': True} for _ in nfeats_list]
     elif norm_layer.func.__name__ == 'GroupNorm':
         norm_args = [{'num_channels': f} for f in nfeats_list]
     elif norm_layer.func.__name__ == 'BatchNorm':
         norm_args = [{'num_features': f} for f in nfeats_list]
     else:
-        raise NotImplementedError('normalization layer [%s] is not found' % norm_layer.func.__name__)
+        raise NotImplementedError(
+            f'normalization layer [{norm_layer.func.__name__}] is not found'
+        )
+
     return norm_args
 
 class NoNorm(nn.Module): #todo with abstractclass and pass
@@ -75,10 +78,14 @@ def init_weights(net, init_type, init_gain):
             elif init_type == 'orthogonal':
                 init.orthogonal_(m.weight.data, gain=init_gain)
             else:
-                raise NotImplementedError('initialization method [%s] is not implemented' % init_type)
+                raise NotImplementedError(
+                    f'initialization method [{init_type}] is not implemented'
+                )
+
         elif classname.find('BatchNorm2d') != -1:
             init.normal_(m.weight.data, 1.0, init_gain)
             init.constant_(m.bias.data, 0.0)
+
     net.apply(init_func)
 
 
@@ -107,7 +114,7 @@ def define_classifier(input_nc, ncf, ninput_edges, nclasses, opt, gpu_ids, arch,
         net = MeshEncoderDecoder(pool_res, down_convs, up_convs, blocks=opt.resblocks,
                                  transfer_data=True)
     else:
-        raise NotImplementedError('Encoder model name [%s] is not recognized' % arch)
+        raise NotImplementedError(f'Encoder model name [{arch}] is not recognized')
     return init_net(net, init_type, init_gain, gpu_ids)
 
 def define_loss(opt):
@@ -134,9 +141,9 @@ class MeshConvNet(nn.Module):
         norm_args = get_norm_args(norm_layer, self.k[1:])
 
         for i, ki in enumerate(self.k[:-1]):
-            setattr(self, 'conv{}'.format(i), MResConv(ki, self.k[i + 1], nresblocks))
-            setattr(self, 'norm{}'.format(i), norm_layer(**norm_args[i]))
-            setattr(self, 'pool{}'.format(i), MeshPool(self.res[i + 1]))
+            setattr(self, f'conv{i}', MResConv(ki, self.k[i + 1], nresblocks))
+            setattr(self, f'norm{i}', norm_layer(**norm_args[i]))
+            setattr(self, f'pool{i}', MeshPool(self.res[i + 1]))
 
 
         self.gp = torch.nn.AvgPool1d(self.res[-1])
@@ -147,9 +154,9 @@ class MeshConvNet(nn.Module):
     def forward(self, x, mesh):
 
         for i in range(len(self.k) - 1):
-            x = getattr(self, 'conv{}'.format(i))(x, mesh)
-            x = F.relu(getattr(self, 'norm{}'.format(i))(x))
-            x = getattr(self, 'pool{}'.format(i))(x, mesh)
+            x = getattr(self, f'conv{i}')(x, mesh)
+            x = F.relu(getattr(self, f'norm{i}')(x))
+            x = getattr(self, f'pool{i}')(x, mesh)
 
         x = self.gp(x)
         x = x.view(-1, self.k[-1])
@@ -166,16 +173,19 @@ class MResConv(nn.Module):
         self.skips = skips
         self.conv0 = MeshConv(self.in_channels, self.out_channels, bias=False)
         for i in range(self.skips):
-            setattr(self, 'bn{}'.format(i + 1), nn.BatchNorm2d(self.out_channels))
-            setattr(self, 'conv{}'.format(i + 1),
-                    MeshConv(self.out_channels, self.out_channels, bias=False))
+            setattr(self, f'bn{i + 1}', nn.BatchNorm2d(self.out_channels))
+            setattr(
+                self,
+                f'conv{i + 1}',
+                MeshConv(self.out_channels, self.out_channels, bias=False),
+            )
 
     def forward(self, x, mesh):
         x = self.conv0(x, mesh)
         x1 = x
         for i in range(self.skips):
-            x = getattr(self, 'bn{}'.format(i + 1))(F.relu(x))
-            x = getattr(self, 'conv{}'.format(i + 1))(x, mesh)
+            x = getattr(self, f'bn{i + 1}')(F.relu(x))
+            x = getattr(self, f'conv{i + 1}')(x, mesh)
         x += x1
         x = F.relu(x)
         return x
@@ -259,8 +269,7 @@ class UpConv(nn.Module):
             self.conv2.append(MeshConv(out_channels, out_channels))
             self.conv2 = nn.ModuleList(self.conv2)
         if batch_norm:
-            for _ in range(blocks + 1):
-                self.bn.append(nn.InstanceNorm2d(out_channels))
+            self.bn.extend(nn.InstanceNorm2d(out_channels) for _ in range(blocks + 1))
             self.bn = nn.ModuleList(self.bn)
         if unroll:
             self.unroll = MeshUnpool(unroll)
@@ -298,25 +307,21 @@ class MeshEncoder(nn.Module):
         self.fcs = None
         self.convs = []
         for i in range(len(convs) - 1):
-            if i + 1 < len(pools):
-                pool = pools[i + 1]
-            else:
-                pool = 0
+            pool = pools[i + 1] if i + 1 < len(pools) else 0
             self.convs.append(DownConv(convs[i], convs[i + 1], blocks=blocks, pool=pool))
         self.global_pool = None
         if fcs is not None:
             self.fcs = []
             self.fcs_bn = []
             last_length = convs[-1]
-            if global_pool is not None:
-                if global_pool == 'max':
-                    self.global_pool = nn.MaxPool1d(pools[-1])
-                elif global_pool == 'avg':
-                    self.global_pool = nn.AvgPool1d(pools[-1])
-                else:
-                    assert False, 'global_pool %s is not defined' % global_pool
-            else:
+            if global_pool is None:
                 last_length *= pools[-1]
+            elif global_pool == 'max':
+                self.global_pool = nn.MaxPool1d(pools[-1])
+            elif global_pool == 'avg':
+                self.global_pool = nn.AvgPool1d(pools[-1])
+            else:
+                assert False, f'global_pool {global_pool} is not defined'
             if fcs[0] == last_length:
                 fcs = fcs[1:]
             for length in fcs:
@@ -356,10 +361,7 @@ class MeshDecoder(nn.Module):
         super(MeshDecoder, self).__init__()
         self.up_convs = []
         for i in range(len(convs) - 2):
-            if i < len(unrolls):
-                unroll = unrolls[i]
-            else:
-                unroll = 0
+            unroll = unrolls[i] if i < len(unrolls) else 0
             self.up_convs.append(UpConv(convs[i], convs[i + 1], blocks=blocks, unroll=unroll,
                                         batch_norm=batch_norm, transfer_data=transfer_data))
         self.final_conv = UpConv(convs[-2], convs[-1], blocks=blocks, unroll=False,
@@ -381,7 +383,7 @@ class MeshDecoder(nn.Module):
         return self.forward(x, encoder_outs)
 
 def reset_params(model): # todo replace with my init
-    for i, m in enumerate(model.modules()):
+    for m in model.modules():
         weight_init(m)
 
 def weight_init(m):

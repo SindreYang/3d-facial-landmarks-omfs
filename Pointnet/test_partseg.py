@@ -2,6 +2,7 @@
 Author: Benny
 Date: Nov 2019
 """
+
 import argparse
 import os
 from data_utils.ShapeNetDataLoader import PartNormalDataset
@@ -22,7 +23,7 @@ seg_classes = {'Earphone': [16, 17, 18], 'Motorbike': [30, 31, 32, 33, 34, 35], 
                'Airplane': [0, 1, 2, 3], 'Pistol': [38, 39, 40], 'Chair': [12, 13, 14, 15], 'Knife': [22, 23]}
 
 seg_label_to_cat = {}  # {0:Airplane, 1:Airplane, ...49:Table}
-for cat in seg_classes.keys():
+for cat in seg_classes:
     for label in seg_classes[cat]:
         seg_label_to_cat[label] = cat
 
@@ -30,9 +31,7 @@ for cat in seg_classes.keys():
 def to_categorical(y, num_classes):
     """ 1-hot encodes a tensor """
     new_y = torch.eye(num_classes)[y.cpu().data.numpy(),]
-    if (y.is_cuda):
-        return new_y.cuda()
-    return new_y
+    return new_y.cuda() if y.is_cuda else new_y
 
 
 def parse_args():
@@ -54,14 +53,14 @@ def main(args):
 
     '''HYPER PARAMETER'''
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
-    experiment_dir = 'log/part_seg/' + args.log_dir
+    experiment_dir = f'log/part_seg/{args.log_dir}'
 
     '''LOG'''
     args = parse_args()
     logger = logging.getLogger("Model")
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    file_handler = logging.FileHandler('%s/eval.txt' % experiment_dir)
+    file_handler = logging.FileHandler(f'{experiment_dir}/eval.txt')
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
@@ -77,10 +76,10 @@ def main(args):
     num_part = 50
 
     '''MODEL LOADING'''
-    model_name = os.listdir(experiment_dir + '/logs')[0].split('.')[0]
+    model_name = os.listdir(f'{experiment_dir}/logs')[0].split('.')[0]
     MODEL = importlib.import_module(model_name)
     classifier = MODEL.get_model(num_part, normal_channel=args.normal).cuda()
-    checkpoint = torch.load(str(experiment_dir) + '/checkpoints/best_model.pth')
+    checkpoint = torch.load(f'{str(experiment_dir)}/checkpoints/best_model.pth')
     classifier.load_state_dict(checkpoint['model_state_dict'])
 
     with torch.no_grad():
@@ -143,7 +142,7 @@ def main(args):
                 shape_ious[cat].append(np.mean(part_ious))
 
         all_shape_ious = []
-        for cat in shape_ious.keys():
+        for cat in shape_ious:
             for iou in shape_ious[cat]:
                 all_shape_ious.append(iou)
             shape_ious[cat] = np.mean(shape_ious[cat])

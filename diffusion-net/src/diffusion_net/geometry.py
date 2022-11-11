@@ -51,8 +51,7 @@ def normalize(x, divide_eps=1e-6, highdim=False):
 
 
 def face_coords(verts, faces):
-    coords = verts[faces]
-    return coords
+    return verts[faces]
 
 
 def cross(vec_A, vec_B):
@@ -86,10 +85,7 @@ def face_normals(verts, faces, normalized=True):
 
     raw_normal = cross(vec_A, vec_B)
 
-    if normalized:
-        return normalize(raw_normal)
-
-    return raw_normal
+    return normalize(raw_normal) if normalized else raw_normal
 
 def neighborhood_normal(points):
     # points: (N, K, 3) array of neighborhood psoitions
@@ -117,7 +113,7 @@ def vertex_normals(verts, faces, n_neighbors_cloud=30):
     verts_np = toNP(verts)
 
     if faces.numel() == 0: # point cloud
-    
+
         _, neigh_inds = find_knn(verts, verts, n_neighbors_cloud, omit_diagonal=True, method='cpu_kd')
         neigh_points = verts_np[neigh_inds,:]
         neigh_points = neigh_points - verts_np[:,np.newaxis,:]
@@ -141,10 +137,10 @@ def vertex_normals(verts, faces, n_neighbors_cloud=30):
         if bad_normals_mask.any():
             normals[bad_normals_mask,:] = (np.random.RandomState(seed=777).rand(*verts.shape)-0.5)[bad_normals_mask,:]
             normals = normals / np.linalg.norm(normals, axis=-1)[:,np.newaxis]
-            
+
 
     normals = torch.from_numpy(normals).to(device=verts.device, dtype=verts.dtype)
-        
+
     if torch.any(torch.isnan(normals)): raise ValueError("NaN normals :(")
 
     return normals
@@ -156,23 +152,19 @@ def build_tangent_frames(verts, faces, normals=None):
     dtype = verts.dtype
     device = verts.device
 
-    if normals == None:
-        vert_normals = vertex_normals(verts, faces)  # (V,3)
-    else:
-        vert_normals = normals 
-
+    vert_normals = vertex_normals(verts, faces) if normals is None else normals
     # = find an orthogonal basis
 
     basis_cand1 = torch.tensor([1, 0, 0]).to(device=device, dtype=dtype).expand(V, -1)
     basis_cand2 = torch.tensor([0, 1, 0]).to(device=device, dtype=dtype).expand(V, -1)
-    
+
     basisX = torch.where((torch.abs(dot(vert_normals, basis_cand1))
                           < 0.9).unsqueeze(-1), basis_cand1, basis_cand2)
     basisX = project_to_tangent(basisX, vert_normals)
     basisX = normalize(basisX)
     basisY = cross(vert_normals, basisX)
     frames = torch.stack((basisX, basisY, vert_normals), dim=-2)
-    
+
     if torch.any(torch.isnan(frames)):
         raise ValueError("NaN coordinate frame! Must be very degenerate")
 
@@ -212,9 +204,7 @@ def edge_tangent_vectors(verts, frames, edges):
 
     compX = dot(edge_vecs, basisX)
     compY = dot(edge_vecs, basisY)
-    edge_tangent = torch.stack((compX, compY), dim=-1)
-
-    return edge_tangent
+    return torch.stack((compX, compY), dim=-1)
 
 def build_grad_cuda(verts_cuda, edges_tensor_cuda, edge_tangent_vecs, n_neighbors_cloud=30, return_device='cpu'):
     # Grad_data currently gives additional debug information. Will be removed later.
@@ -242,7 +232,7 @@ def build_grad_cuda(verts_cuda, edges_tensor_cuda, edge_tangent_vecs, n_neighbor
 
     return gradX, gradY
 
-def build_grad_cpu(verts, edges, edge_tangent_vectors): # slow
+def build_grad_cpu(verts, edges, edge_tangent_vectors):    # slow
     """
     Build a (V, V) complex sparse matrix grad operator. Given real inputs at vertices, produces a complex (vector value) at vertices giving the gradient. All values pointwise.
     - edges: (2, E)
@@ -253,7 +243,7 @@ def build_grad_cpu(verts, edges, edge_tangent_vectors): # slow
 
     # Build outgoing neighbor lists
     N = verts.shape[0]
-    vert_edge_outgoing = [[] for i in range(N)]
+    vert_edge_outgoing = [[] for _ in range(N)]
     for iE in range(edges_np.shape[1]):
         tail_ind = edges_np[0, iE]
         tip_ind = edges_np[1, iE]
@@ -265,6 +255,8 @@ def build_grad_cpu(verts, edges, edge_tangent_vectors): # slow
     col_inds = []
     data_vals = []
     eps_reg = 1e-5
+    w_e = 1.
+
     for iV in range(N):
         n_neigh = len(vert_edge_outgoing[iV])
 
@@ -275,10 +267,8 @@ def build_grad_cpu(verts, edges, edge_tangent_vectors): # slow
             iE = vert_edge_outgoing[iV][i_neigh]
             jV = edges_np[1, iE]
             ind_lookup.append(jV)
-    
-            edge_vec = edge_tangent_vectors[iE][:]
-            w_e = 1.
 
+            edge_vec = edge_tangent_vectors[iE][:]
             lhs_mat[i_neigh][:] = w_e * edge_vec
             rhs_mat[i_neigh][0] = w_e * (-1)
             rhs_mat[i_neigh][i_neigh + 1] = w_e * 1
@@ -300,11 +290,9 @@ def build_grad_cpu(verts, edges, edge_tangent_vectors): # slow
     row_inds = np.array(row_inds)
     col_inds = np.array(col_inds)
     data_vals = np.array(data_vals)
-    mat = scipy.sparse.coo_matrix(
-        (data_vals, (row_inds, col_inds)), shape=(
-            N, N)).tocsc()
-
-    return mat
+    return scipy.sparse.coo_matrix(
+        (data_vals, (row_inds, col_inds)), shape=(N, N)
+    ).tocsc()
 
 
 def compute_operators(verts, faces, k_eig, normals=None):
@@ -356,7 +344,7 @@ def compute_operators(verts, faces, k_eig, normals=None):
         L = pp3d.cotan_laplacian(verts_np, faces_np, denom_eps=1e-10)
         massvec_np = pp3d.vertex_areas(verts_np, faces_np)
         massvec_np += eps * np.mean(massvec_np)
-    
+
     if(np.isnan(L.data).any()):
         raise RuntimeError("NaN Laplace matrix")
     if(np.isnan(massvec_np).any()):
@@ -381,7 +369,7 @@ def compute_operators(verts, faces, k_eig, normals=None):
             try:
                 # We would be happy here to lower tol or maxiter since we don't need these to be super precise, but for some reason those parameters seem to have no effect
                 evals_np, evecs_np = sla.eigsh(L_eigsh, k=k_eig, M=Mmat, sigma=eigs_sigma)
-            
+
                 # Clip off any eigenvalues that end up slightly negative due to numerical weirdness
                 evals_np = np.clip(evals_np, a_min=0., a_max=float('inf'))
 
@@ -391,7 +379,7 @@ def compute_operators(verts, faces, k_eig, normals=None):
                 if(failcount > 3):
                     raise ValueError("failed to compute eigendecomp")
                 failcount += 1
-                print("--- decomp failed; adding eps ===> count: " + str(failcount))
+                print(f"--- decomp failed; adding eps ===> count: {failcount}")
                 L_eigsh = L_eigsh + scipy.sparse.identity(L.shape[0]) * (eps * 10**failcount)
 
 
@@ -430,7 +418,7 @@ def compute_operators(verts, faces, k_eig, normals=None):
         # Split complex gradient in to two real sparse mats (torch doesn't like complex sparse matrices)
         gradX_np = np.real(grad_mat_np)
         gradY_np = np.imag(grad_mat_np)
-    
+
     # === Convert back to torch
     massvec = torch.from_numpy(massvec_np).to(device=device, dtype=dtype)
     L = utils.sparse_np_to_torch(L).to(device=device, dtype=dtype)
@@ -444,7 +432,7 @@ def compute_operators(verts, faces, k_eig, normals=None):
 
 
 def populate_cache(verts, faces, k_eig, op_cache_dir=None, normals=None):
-            
+
     # frames = [None] * N
     # massvec = [None] * N
     # L = [None] * N
@@ -455,7 +443,7 @@ def populate_cache(verts, faces, k_eig, op_cache_dir=None, normals=None):
 
     # process in random order
     # random.shuffle(inds)
-   
+
     #for num, i in enumerate(inds):
     #print("get_all_operators() processing {} / {} {:.3f}%".format(num, N, num / N * 100))
     if normals is None:
@@ -506,9 +494,10 @@ def get_operators(verts, faces, k_eig=128, op_cache_dir=None, normals=None, over
 
             # Form the name of the file to check
             search_path = os.path.join(
-                op_cache_dir,
-                hash_key_str + "_" + str(i_cache_search) + ".npz")
-            
+                op_cache_dir, f"{hash_key_str}_{str(i_cache_search)}.npz"
+            )
+
+
             try:
                 # print('loading path: ' + str(search_path))
                 npzfile = np.load(search_path, allow_pickle=True)
@@ -530,12 +519,12 @@ def get_operators(verts, faces, k_eig=128, op_cache_dir=None, normals=None, over
                     print("  overwriting cache by request")
                     os.remove(search_path)
                     break
-                
+
                 if cache_k_eig < k_eig:
                     print("  overwriting cache --- not enough eigenvalues")
                     os.remove(search_path)
                     break
-                
+
                 if "L_data" not in npzfile:
                     print("  overwriting cache --- entries are absent")
                     os.remove(search_path)
@@ -543,10 +532,10 @@ def get_operators(verts, faces, k_eig=128, op_cache_dir=None, normals=None, over
 
 
                 def read_sp_mat(prefix):
-                    data = npzfile[prefix + "_data"]
-                    indices = npzfile[prefix + "_indices"]
-                    indptr = npzfile[prefix + "_indptr"]
-                    shape = npzfile[prefix + "_shape"]
+                    data = npzfile[f"{prefix}_data"]
+                    indices = npzfile[f"{prefix}_indices"]
+                    indptr = npzfile[f"{prefix}_indptr"]
+                    shape = npzfile[f"{prefix}_shape"]
                     mat = scipy.sparse.csc_matrix((data, indices, indptr), shape=shape)
                     return mat
 
@@ -589,17 +578,17 @@ def get_operators(verts, faces, k_eig=128, op_cache_dir=None, normals=None, over
                 evecs = torch.from_numpy(evecs).to(device=device, dtype=dtype)
                 gradX = utils.sparse_np_to_torch(gradX).to(device=device, dtype=dtype)
                 gradY = utils.sparse_np_to_torch(gradY).to(device=device, dtype=dtype)
-                
+
                 found = True
-                
+
                 break
 
             except FileNotFoundError:
                 print("  cache miss -- constructing operators")
                 break
-            
+
             except Exception as E:
-                print("unexpected error loading file: " + str(E))
+                print(f"unexpected error loading file: {str(E)}")
                 print("-- constructing operators")
                 break
 
@@ -694,10 +683,7 @@ def compute_hks(evals, evecs, scales):
 
     out = torch.sum(terms, dim=-1) # (B,V,S)
 
-    if expand_batch:
-        return out.squeeze(0)
-    else:
-        return out
+    return out.squeeze(0) if expand_batch else out
 
 def compute_hks_autoscale(evals, evecs, count):
     # these scales roughly approximate those suggested in the hks paper
@@ -748,9 +734,7 @@ def find_knn(points_source, points_target, k, largest=False, omit_diagonal=False
         if omit_diagonal:
             torch.diagonal(dist_mat)[:] = float('inf')
 
-        result = torch.topk(dist_mat, k=k, largest=largest, sorted=True)
-        return result
-    
+        return torch.topk(dist_mat, k=k, largest=largest, sorted=True)
     elif method == 'cpu_kd':
 
         if largest:
@@ -764,7 +748,7 @@ def find_knn(points_source, points_target, k, largest=False, omit_diagonal=False
 
         k_search = k+1 if omit_diagonal else k 
         _, neighbors = kd_tree.query(points_source_np, k=k_search)
-        
+
         if omit_diagonal: 
             # Mask out self element
             mask = neighbors != np.arange(neighbors.shape[0])[:, np.newaxis]
@@ -778,7 +762,7 @@ def find_knn(points_source, points_target, k, largest=False, omit_diagonal=False
         dists = norm(points_source.unsqueeze(1).expand(-1, k, -1) - points_target[inds])
 
         return dists, inds
-    
+
     else:
         raise ValueError("unrecognized method")
 
@@ -869,9 +853,7 @@ def all_pairs_geodesic_worker(verts, faces, i):
     # TODO: this re-does a ton of work, since it is called independently each time. Some custom C++ code could surely make it faster.
     sources = np.array([i])[:,np.newaxis]
     targets = np.arange(N)[:,np.newaxis]
-    dist_vec = igl.exact_geodesic(verts, faces, sources, targets)
-    
-    return dist_vec
+    return igl.exact_geodesic(verts, faces, sources, targets)
         
 class AllPairsGeodesicEngine(object):
     def __init__(self, verts, faces):
@@ -895,7 +877,7 @@ def get_all_pairs_geodesic_distance(verts_np, faces_np, geodesic_cache_dir=None)
         raise ImportError("Must have python libigl installed for all-pairs geodesics. `conda install -c conda-forge igl`")
 
     # Check the cache
-    found = False 
+    found = False
     if geodesic_cache_dir is not None:
         utils.ensure_dir_exists(geodesic_cache_dir)
         hash_key_str = str(utils.hash_arrays((verts_np, faces_np)))
@@ -908,8 +890,9 @@ def get_all_pairs_geodesic_distance(verts_np, faces_np, geodesic_cache_dir=None)
 
             # Form the name of the file to check
             search_path = os.path.join(
-                geodesic_cache_dir,
-                hash_key_str + "_" + str(i_cache_search) + ".npz")
+                geodesic_cache_dir, f"{hash_key_str}_{str(i_cache_search)}.npz"
+            )
+
 
             try:
                 npzfile = np.load(search_path, allow_pickle=True)
@@ -963,7 +946,7 @@ def get_all_pairs_geodesic_distance(verts_np, faces_np, geodesic_cache_dir=None)
         # put it in the cache if possible
         if geodesic_cache_dir is not None:
 
-            print("saving geodesic distances to cache: " + str(geodesic_cache_dir))
+            print(f"saving geodesic distances to cache: {str(geodesic_cache_dir)}")
 
             # TODO we're potentially saving a double precision but only using a single
             # precision here; could save storage by always saving as floats
@@ -1001,7 +984,7 @@ def mirror(verts, ldmks):
     # create mirrored point cloud
     e = d.copy()
     e[:, 0] = -e[:, 0]
-    
+
     return torch.from_numpy(e).float()
 
 def rotation_matrix_from_vectors(vec1, vec2):
@@ -1015,5 +998,4 @@ def rotation_matrix_from_vectors(vec1, vec2):
     c = np.dot(a, b)
     s = np.linalg.norm(v)
     kmat = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
-    rotation_matrix = np.eye(3) + kmat + kmat.dot(kmat) * ((1 - c) / (s ** 2))
-    return rotation_matrix
+    return np.eye(3) + kmat + kmat.dot(kmat) * ((1 - c) / (s ** 2))

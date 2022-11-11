@@ -31,15 +31,11 @@ def main():
 
     if not IS_REFINED:
         num_ldmks = pred.shape[1]
-    else:
-        num_ldmks = 12   
-    #num_ldmks = 10 # define landmarks manually if predictions include more landmarks
-
-    if not IS_REFINED:
         # error matrix (ldmks, preds)
         error_matrix = np.zeros((num_ldmks, total_preds))
     else:
-        error_matrix = np.zeros((num_ldmks, int(int(total_preds)/num_ldmks)))
+        num_ldmks = 12
+        error_matrix = np.zeros((num_ldmks, int(total_preds) // num_ldmks))
 
     arr_folder_nums = []
     # for each prediction
@@ -60,42 +56,34 @@ def main():
             arr_folder_nums.append(folder_num)
 
 
-        # load target
-        if IS_REFINED:
-            # choose target by proximation of closest point
-            #path = os.path.join('test', folder_num + '_0', folder_num_ldmk, 'hmap_per_class.pkl')
-            #with open(os.path.join(ROOTDIR, path), 'rb') as f:
-            #    target = pickle.load(f)
+        # choose target by proximation of closest point
+        #path = os.path.join('test', folder_num + '_0', folder_num_ldmk, 'hmap_per_class.pkl')
+        #with open(os.path.join(ROOTDIR, path), 'rb') as f:
+        #    target = pickle.load(f)
 
-            # take actual landmark coordinate target
-            # identify landmark coordinates for file
-            for i in range(LDMKS.shape[0]):
-                if int(LDMKS[i, 0, 0]) == int(folder_num):
-                    ldmks_idx = i
-                    break
-            ldmks_per_file = LDMKS[ldmks_idx, 1:, :]  # shape (landmarks, 3)
-            target = ldmks_per_file
-        else:
-            # choose target by proximation of closest point
-            #path = os.path.join('test',folder_num, 'hmap_per_class.pkl')
-            #with open(os.path.join(ROOTDIR, path), 'rb') as f:
-            #    target = pickle.load(f)
-
-            # take actual landmark coordinate target
-            for i in range(LDMKS.shape[0]):
-                if int(LDMKS[i, 0, 0]) == int(folder_num):
-                    ldmks_idx = i
-                    break
-            ldmks_per_file = LDMKS[ldmks_idx, 1:, :]  # shape (landmarks, 3)
-            target = ldmks_per_file
+        # take actual landmark coordinate target
+        # identify landmark coordinates for file
+        for i in range(LDMKS.shape[0]):
+            if int(LDMKS[i, 0, 0]) == int(folder_num):
+                ldmks_idx = i
+                break
+        ldmks_per_file = LDMKS[ldmks_idx, 1:, :]  # shape (landmarks, 3)
+        target = ldmks_per_file
         # only keep selected landmarks
         target = [item for pos, item in enumerate(target) if pos in LANDMARK_INDICES]
 
         # get vertex xyz coordinate
-        for file in os.listdir(os.path.join(ROOTDIR, 'test', folder_num + '', folder_num_ldmk if IS_REFINED else '')):
+        for file in os.listdir(os.path.join(ROOTDIR, 'test', f'{folder_num}', folder_num_ldmk if IS_REFINED else '')):
             # .txt extension for pcl
             if file.endswith('.txt'):
-                verts_filepath = os.path.join(ROOTDIR, 'test', folder_num + '', folder_num_ldmk if IS_REFINED else '', file)
+                verts_filepath = os.path.join(
+                    ROOTDIR,
+                    'test',
+                    f'{folder_num}',
+                    folder_num_ldmk if IS_REFINED else '',
+                    file,
+                )
+
 
                 # todo make helper function to load .txt into pcl array
                 lines = open(verts_filepath, 'r').read().split('\n')[:-1]
@@ -103,12 +91,12 @@ def main():
                 break
 
             elif file.endswith('.obj'): # .obj extension for mesh
-                verts_filepath = os.path.join(ROOTDIR, 'test/{}'.format(folder_num), file)
+                verts_filepath = os.path.join(ROOTDIR, f'test/{folder_num}', file)
                 verts, _ = pp3d.read_mesh(verts_filepath)
                 break
 
         pred = np.transpose(pred)
-        
+
         if REMOVE_SYMMETRICAL_PREDS:
             # get nasion, pronasale and subnasale coordinates
             ns = verts[np.argmax(pred[1,:])]
@@ -158,13 +146,11 @@ def main():
             coords_pred = verts[indcs[i]]
 
             # target coords by looking for activation 1 in each landmark channel
-            if not IS_REFINED:
-                #ind = int(np.where(target[i] == 1)[0])
-                #point = int(target[i][ind][0])
-                #coords_target = verts[point]
-                coords_target = target[i]
-            else:
-                coords_target = ldmks_per_file[LANDMARK_INDICES[int(folder_num_ldmk)]]
+            coords_target = (
+                ldmks_per_file[LANDMARK_INDICES[int(folder_num_ldmk)]]
+                if IS_REFINED
+                else target[i]
+            )
 
             dist = eucl_dist(coords_target[0],coords_target[1],coords_target[2],
                             coords_pred[0],coords_pred[1],coords_pred[2])

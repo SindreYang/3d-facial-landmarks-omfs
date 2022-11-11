@@ -71,10 +71,16 @@ class ModelNetDataLoader(Dataset):
             shape_ids['train'] = [line.rstrip() for line in open(os.path.join(self.root, 'modelnet40_train.txt'))]
             shape_ids['test'] = [line.rstrip() for line in open(os.path.join(self.root, 'modelnet40_test.txt'))]
 
-        assert (split == 'train' or split == 'test')
-        shape_names = ['_'.join(x.split('_')[0:-1]) for x in shape_ids[split]]
-        self.datapath = [(shape_names[i], os.path.join(self.root, shape_names[i], shape_ids[split][i]) + '.txt') for i
-                         in range(len(shape_ids[split]))]
+        assert split in ['train', 'test']
+        shape_names = ['_'.join(x.split('_')[:-1]) for x in shape_ids[split]]
+        self.datapath = [
+            (
+                shape_names[i],
+                f'{os.path.join(self.root, shape_names[i], shape_ids[split][i])}.txt',
+            )
+            for i in range(len(shape_ids[split]))
+        ]
+
         print('The size of %s data is %d' % (split, len(self.datapath)))
 
         if self.uniform:
@@ -84,7 +90,7 @@ class ModelNetDataLoader(Dataset):
 
         if self.process_data:
             if not os.path.exists(self.save_path):
-                print('Processing data %s (only running in the first time)...' % self.save_path)
+                print(f'Processing data {self.save_path} (only running in the first time)...')
                 self.list_of_points = [None] * len(self.datapath)
                 self.list_of_labels = [None] * len(self.datapath)
 
@@ -105,7 +111,7 @@ class ModelNetDataLoader(Dataset):
                 with open(self.save_path, 'wb') as f:
                     pickle.dump([self.list_of_points, self.list_of_labels], f)
             else:
-                print('Load processed data from %s...' % self.save_path)
+                print(f'Load processed data from {self.save_path}...')
                 with open(self.save_path, 'rb') as f:
                     self.list_of_points, self.list_of_labels = pickle.load(f)
 
@@ -125,7 +131,7 @@ class ModelNetDataLoader(Dataset):
                 point_set = farthest_point_sample(point_set, self.npoints)
             else:
                 point_set = point_set[0:self.npoints, :]
-                
+
         point_set[:, 0:3] = pc_normalize(point_set[:, 0:3])
         if not self.use_normals:
             point_set = point_set[:, 0:3]
@@ -150,16 +156,27 @@ class HeadspaceDataLoader(Dataset):
         self.cat = [line.rstrip() for line in open(self.catfile)]
         self.classes = dict(zip(self.cat, range(len(self.cat))))
 
-        self.labels = np.load(self.root + 'ldmks.pkl', allow_pickle=True)
+        self.labels = np.load(f'{self.root}ldmks.pkl', allow_pickle=True)
 
-        shape_ids = {}
-        shape_ids['train'] = [line.rstrip() for line in open(os.path.join(self.root, 'headspace_train.txt'))]
+        shape_ids = {
+            'train': [
+                line.rstrip()
+                for line in open(os.path.join(self.root, 'headspace_train.txt'))
+            ]
+        }
+
         shape_ids['test'] = [line.rstrip() for line in open(os.path.join(self.root, 'headspace_test.txt'))]
 
-        assert (split == 'train' or split == 'test')
-        shape_names = ['_'.join(x.split('_')[0:-1]) for x in shape_ids[split]]
-        self.datapath = [(shape_names[i], os.path.join(self.root, shape_names[i], shape_ids[split][i]) + '.txt') for i
-                         in range(len(shape_ids[split]))]
+        assert split in ['train', 'test']
+        shape_names = ['_'.join(x.split('_')[:-1]) for x in shape_ids[split]]
+        self.datapath = [
+            (
+                shape_names[i],
+                f'{os.path.join(self.root, shape_names[i], shape_ids[split][i])}.txt',
+            )
+            for i in range(len(shape_ids[split]))
+        ]
+
         print('The size of %s data is %d' % (split, len(self.datapath)))
 
         if self.uniform:
@@ -170,7 +187,7 @@ class HeadspaceDataLoader(Dataset):
 
         if self.process_data:
             if not os.path.exists(self.save_path):
-                print('Processing data %s (only running in the first time)...' % self.save_path)
+                print(f'Processing data {self.save_path} (only running in the first time)...')
                 self.list_of_points = [None] * len(self.datapath)
                 self.list_of_labels = [None] * len(self.datapath)
 
@@ -191,7 +208,7 @@ class HeadspaceDataLoader(Dataset):
                 with open(self.save_path, 'wb') as f:
                     pickle.dump([self.list_of_points, self.list_of_labels], f)
             else:
-                print('Load processed data from %s...' % self.save_path)
+                print(f'Load processed data from {self.save_path}...')
                 with open(self.save_path, 'rb') as f:
                     self.list_of_points, self.list_of_labels = pickle.load(f)
 

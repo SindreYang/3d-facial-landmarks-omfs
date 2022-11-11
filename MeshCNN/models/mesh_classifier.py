@@ -18,7 +18,12 @@ class ClassifierModel:
         self.opt = opt
         self.gpu_ids = opt.gpu_ids
         self.is_train = opt.is_train
-        self.device = torch.device('cuda:{}'.format(self.gpu_ids[0])) if self.gpu_ids else torch.device('cpu')
+        self.device = (
+            torch.device(f'cuda:{self.gpu_ids[0]}')
+            if self.gpu_ids
+            else torch.device('cpu')
+        )
+
         self.save_dir = join(opt.checkpoints_dir, opt.name)
         self.optimizer = None
         self.edge_features = None
@@ -63,9 +68,7 @@ class ClassifierModel:
 
 
     def forward(self):
-        out = self.net(self.edge_features, self.mesh)
-        #print(out)
-        return out
+        return self.net(self.edge_features, self.mesh)
 
     def backward(self, out):
         self.loss = self.criterion(out, self.labels)
@@ -82,12 +85,12 @@ class ClassifierModel:
 
     def load_network(self, which_epoch):
         """load model from disk"""
-        save_filename = '%s_net.pth' % which_epoch
+        save_filename = f'{which_epoch}_net.pth'
         load_path = join(self.save_dir, save_filename)
         net = self.net
         if isinstance(net, torch.nn.DataParallel):
             net = net.module
-        print('loading the model from %s' % load_path)
+        print(f'loading the model from {load_path}')
         # PyTorch newer than 0.4 (e.g., built from
         # GitHub source), you can remove str() on self.device
         state_dict = torch.load(load_path, map_location=str(self.device))
@@ -98,7 +101,7 @@ class ClassifierModel:
 
     def save_network(self, which_epoch):
         """save model to disk"""
-        save_filename = '%s_net.pth' % (which_epoch)
+        save_filename = f'{which_epoch}_net.pth'
         save_path = join(self.save_dir, save_filename)
         if len(self.gpu_ids) > 0 and torch.cuda.is_available():
             torch.save(self.net.module.cpu().state_dict(), save_path)
@@ -123,15 +126,15 @@ class ClassifierModel:
             folder_rows[:, 0] = self.foldernum
             out_to_dump = np.insert(out_to_dump, 0, folder_rows, axis=1)
 
-            with open(self.opt.dataroot + '/predictions.pkl', 'wb') as f:
+            with open(f'{self.opt.dataroot}/predictions.pkl', 'wb') as f:
                 pickle.dump(out_to_dump, f)
-            print("TEST coordinates: " + str(out))
+            print(f"TEST coordinates: {str(out)}")
             # compute number of correct
             # pred_class = out.data.max(1)[1]
             #label_class = self.labels
             #self.export_segmentation(pred_class.cpu())
             error = self.get_accuracy(out, self.labels)
-            #correct = self.get_accuracy(pred_class, label_class)
+                #correct = self.get_accuracy(pred_class, label_class)
         #return correct, len(label_class)
         return error, len(self.labels)
 

@@ -2,6 +2,7 @@
 Author: Benny
 Date: Nov 2019
 """
+
 import argparse
 import os
 from data_utils.S3DISDataLoader import S3DISDataset
@@ -25,9 +26,7 @@ classes = ['ceiling', 'floor', 'wall', 'beam', 'column', 'window', 'door', 'tabl
            'board', 'clutter']
 class2label = {cls: i for i, cls in enumerate(classes)}
 seg_classes = class2label
-seg_label_to_cat = {}
-for i, cat in enumerate(seg_classes.keys()):
-    seg_label_to_cat[i] = cat
+seg_label_to_cat = dict(enumerate(seg_classes.keys()))
 
 def inplace_relu(m):
     classname = m.__class__.__name__

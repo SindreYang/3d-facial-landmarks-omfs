@@ -128,11 +128,11 @@ def test():
             labels = labels.to(device)
 
             # Construct features
-            if input_features == 'xyz':
-                features = verts
-            elif input_features == 'hks':
+            if input_features == 'hks':
                 features = diffusion_net.geometry.compute_hks_autoscale(evals, evecs, 16)
 
+            elif input_features == 'xyz':
+                features = verts
             # Apply the model
             preds = model(features, mass, L=L, evals=evals, evecs=evecs, gradX=gradX, gradY=gradY, faces=faces)
             predstp = torch.transpose(preds, 0, 1)
@@ -140,11 +140,8 @@ def test():
 
             diffusion_net.utils.ensure_dir_exists(os.path.join(dataset_path, 'preds' + ('_validation' if train
                                                                                                    else '')))
-            f = open(os.path.join(dataset_path, 'preds' + ('_validation' if train else ''),
-                     'hmap_per_class{}_{}.pkl'.format(folder_num, folder_num_ldmk)), 'wb+')
-            pickle.dump(np.asarray(preds.cpu()), f)
-            f.close()
-
+            with open(os.path.join(dataset_path, 'preds' + ('_validation' if train else ''), f'hmap_per_class{folder_num}_{folder_num_ldmk}.pkl'), 'wb+') as f:
+                pickle.dump(np.asarray(preds.cpu()), f)
             if not test_without_score:
                 #labels = torch.FloatTensor(labels)
                 weights = point_weights(labels)
@@ -209,10 +206,18 @@ for ldmk_iter in range(12):
     base_path = os.path.dirname(__file__)
     dataset_path = os.path.join(base_path, args.data_dir)
     op_cache_dir = os.path.join(dataset_path, "op_cache")
-    last_model_path = os.path.join(dataset_path, "saved_models", "headspace_ldmks_last_{}_{}x{}_ldmk{}.pth".format(input_features,
-                                                                                n_block, c_width, ldmk_iter))
-    best_model_path = os.path.join(dataset_path, "saved_models", "headspace_ldmks_best_{}_{}x{}_ldmk{}.pth".format(input_features,
-                                                                                n_block, c_width, ldmk_iter))
+    last_model_path = os.path.join(
+        dataset_path,
+        "saved_models",
+        f"headspace_ldmks_last_{input_features}_{n_block}x{c_width}_ldmk{ldmk_iter}.pth",
+    )
+
+    best_model_path = os.path.join(
+        dataset_path,
+        "saved_models",
+        f"headspace_ldmks_best_{input_features}_{n_block}x{c_width}_ldmk{ldmk_iter}.pth",
+    )
+
     pretrain_path = best_model_path
 
     # === Load datasets
@@ -248,7 +253,7 @@ for ldmk_iter in range(12):
 
     if not train:
         # load the pretrained model
-        print("Loading pretrained model from: " + str(pretrain_path))
+        print(f"Loading pretrained model from: {str(pretrain_path)}")
         if torch.cuda.is_available():
             model.load_state_dict(torch.load(pretrain_path))
         else:
@@ -267,22 +272,22 @@ for ldmk_iter in range(12):
         for epoch in range(n_epoch):
             train_acc = train_epoch(epoch)
             test_acc = test()
-            print("Epoch {} - Train overall: {}  Test overall: {}".format(epoch, train_acc, test_acc))
+            print(f"Epoch {epoch} - Train overall: {train_acc}  Test overall: {test_acc}")
             #if epoch % 10 == 0:
             if test_acc < best_acc:
                 best_acc = test_acc
-                print(" ==> saving model to " + best_model_path)
+                print(f" ==> saving model to {best_model_path}")
                 diffusion_net.utils.ensure_dir_exists(os.path.join(dataset_path, 'saved_models'))
                 torch.save(model.state_dict(), best_model_path)
 
-        # diffusion_net.utils.ensure_dir_exists(os.path.join(dataset_path, 'saved_models'))
-        # print(" ==> saving last model to " + last_model_path)
-        # torch.save(model.state_dict(), last_model_path)
+            # diffusion_net.utils.ensure_dir_exists(os.path.join(dataset_path, 'saved_models'))
+            # print(" ==> saving last model to " + last_model_path)
+            # torch.save(model.state_dict(), last_model_path)
 
 
     # Test
     test_acc = test()
-    print("Overall test accuracy: {}".format(test_acc))
+    print(f"Overall test accuracy: {test_acc}")
 
     # remove cache and op_cache
     shutil.rmtree(os.path.join(dataset_path, 'cache'))

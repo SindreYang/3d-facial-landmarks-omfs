@@ -48,9 +48,15 @@ def update_plot(mesh, plot):
 def surfaces(mesh, plot):
     vs, faces, edges = mesh
     vtx = vs[faces]
-    edgecolor = edge_color if not len(edges) else 'none'
-    tri = a3.art3d.Poly3DCollection(vtx, facecolors=surface_color +'55', edgecolors=edgecolor,
-                                    linewidths=.5, linestyles='dashdot')
+    edgecolor = 'none' if len(edges) else edge_color
+    tri = a3.art3d.Poly3DCollection(
+        vtx,
+        facecolors=f'{surface_color}55',
+        edgecolors=edgecolor,
+        linewidths=0.5,
+        linestyles='dashdot',
+    )
+
     plot[0].add_collection3d(tri)
     return plot
 

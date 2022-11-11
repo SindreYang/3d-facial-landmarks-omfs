@@ -28,8 +28,7 @@ def main():
             lines = []
             with open(os.path.join(ROOTDIR, folder_number, 'ldmks.csv'), 'r') as f:
                 csvreader = csv.reader(f)
-                for row in csvreader:
-                    lines.append(row)
+                lines.extend(iter(csvreader))
             lines = lines[7:19]
             lines = [row[1:4] for row in lines]
         else:

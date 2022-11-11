@@ -38,9 +38,13 @@ def get_mesh_path(file: str, num_aug: int):
 
 def from_scratch(file, opt):
 
+
+
+
     class MeshPrep:
         def __getitem__(self, item):
-            return eval('self.' + item)
+            return eval(f'self.{item}')
+
 
     mesh_data = MeshPrep()
     mesh_data.vs = mesh_data.edges = None
@@ -66,21 +70,20 @@ def fill_from_file(mesh, file):
     mesh.filename = ntpath.split(file)[1]
     mesh.fullfilename = file
     vs, faces = [], []
-    f = open(file)
-    for line in f:
-        line = line.strip()
-        splitted_line = line.split()
-        if not splitted_line:
-            continue
-        elif splitted_line[0] == 'v':
-            vs.append([float(v) for v in splitted_line[1:4]])
-        elif splitted_line[0] == 'f':
-            face_vertex_ids = [int(c.split('/')[0]) for c in splitted_line[1:]]
-            assert len(face_vertex_ids) == 3
-            face_vertex_ids = [(ind - 1) if (ind >= 0) else (len(vs) + ind)
-                               for ind in face_vertex_ids]
-            faces.append(face_vertex_ids)
-    f.close()
+    with open(file) as f:
+        for line in f:
+            line = line.strip()
+            splitted_line = line.split()
+            if not splitted_line:
+                continue
+            elif splitted_line[0] == 'v':
+                vs.append([float(v) for v in splitted_line[1:4]])
+            elif splitted_line[0] == 'f':
+                face_vertex_ids = [int(c.split('/')[0]) for c in splitted_line[1:]]
+                assert len(face_vertex_ids) == 3
+                face_vertex_ids = [(ind - 1) if (ind >= 0) else (len(vs) + ind)
+                                   for ind in face_vertex_ids]
+                faces.append(face_vertex_ids)
     vs = np.asarray(vs)
     faces = np.asarray(faces, dtype=int)
     assert np.logical_and(faces >= 0, faces < len(vs)).all()
@@ -108,7 +111,7 @@ def remove_non_manifolds(mesh, faces):
         if is_manifold:
             mask[face_id] = False
         else:
-            for idx, edge in enumerate(faces_edges):
+            for edge in faces_edges:
                 edges_set.add(edge)
     return faces[mask], face_areas[mask]
 
@@ -122,7 +125,7 @@ def build_gemm(mesh, faces, face_areas):
     mesh.ve = [[] for _ in mesh.vs]
     edge_nb = []
     sides = []
-    edge2key = dict()
+    edge2key = {}
     edges = []
     edges_count = 0
     nb_count = []
@@ -166,7 +169,10 @@ def compute_face_normals_and_areas(mesh, faces):
                             mesh.vs[faces[:, 2]] - mesh.vs[faces[:, 1]])
     face_areas = np.sqrt((face_normals ** 2).sum(axis=1))
     face_normals /= face_areas[:, np.newaxis]
-    assert (not np.any(face_areas[:, np.newaxis] == 0)), 'has zero area face: %s' % mesh.filename
+    assert not np.any(
+        face_areas[:, np.newaxis] == 0
+    ), f'has zero area face: {mesh.filename}'
+
     face_areas *= 0.5
     return face_normals, face_areas
 
@@ -193,16 +199,15 @@ def slide_verts(mesh, prct):
     target = int(prct * len(vids))
     shifted = 0
     for vi in vids:
-        if shifted < target:
-            edges = mesh.ve[vi]
-            if min(dihedral[edges]) > 2.65:
-                edge = mesh.edges[np.random.choice(edges)]
-                vi_t = edge[1] if vi == edge[0] else edge[0]
-                nv = mesh.vs[vi] + np.random.uniform(0.2, 0.5) * (mesh.vs[vi_t] - mesh.vs[vi])
-                mesh.vs[vi] = nv
-                shifted += 1
-        else:
+        if shifted >= target:
             break
+        edges = mesh.ve[vi]
+        if min(dihedral[edges]) > 2.65:
+            edge = mesh.edges[np.random.choice(edges)]
+            vi_t = edge[1] if vi == edge[0] else edge[0]
+            nv = mesh.vs[vi] + np.random.uniform(0.2, 0.5) * (mesh.vs[vi_t] - mesh.vs[vi])
+            mesh.vs[vi] = nv
+            shifted += 1
     mesh.shifted = shifted / len(mesh.ve)
 
 
@@ -220,8 +225,7 @@ def angles_from_faces(mesh, edge_faces, faces):
         div = fixed_division(np.linalg.norm(normals[i], ord=2, axis=1), epsilon=0)
         normals[i] /= div[:, np.newaxis]
     dot = np.sum(normals[0] * normals[1], axis=1).clip(-1, 1)
-    angles = np.pi - np.arccos(dot)
-    return angles
+    return np.pi - np.arccos(dot)
 
 
 def flip_edges(mesh, prct, faces):
@@ -284,7 +288,7 @@ def check_area(mesh, faces):
 def get_edge_faces(faces):
     edge_count = 0
     edge_faces = []
-    edge2keys = dict()
+    edge2keys = {}
     for face_id, face in enumerate(faces):
         for i in range(3):
             cur_edge = tuple(sorted((face[i], face[(i + 1) % 3])))
@@ -326,8 +330,7 @@ def dihedral_angle(mesh, edge_points):
     normals_a = get_normals(mesh, edge_points, 0)
     normals_b = get_normals(mesh, edge_points, 3)
     dot = np.sum(normals_a * normals_b, axis=1).clip(-1, 1)
-    angles = np.expand_dims(np.pi - np.arccos(dot), axis=0)
-    return angles
+    return np.expand_dims(np.pi - np.arccos(dot), axis=0)
 
 
 def symmetric_opposite_angles(mesh, edge_points):
@@ -383,15 +386,9 @@ def get_side_points(mesh, edge_id):
     else:
         edge_d = mesh.edges[mesh.gemm_edges[edge_id, 2]]
         edge_e = mesh.edges[mesh.gemm_edges[edge_id, 3]]
-    first_vertex = 0
-    second_vertex = 0
-    third_vertex = 0
-    if edge_a[1] in edge_b:
-        first_vertex = 1
-    if edge_b[1] in edge_c:
-        second_vertex = 1
-    if edge_d[1] in edge_e:
-        third_vertex = 1
+    first_vertex = 1 if edge_a[1] in edge_b else 0
+    second_vertex = 1 if edge_b[1] in edge_c else 0
+    third_vertex = 1 if edge_d[1] in edge_e else 0
     return [edge_a[first_vertex], edge_a[1 - first_vertex], edge_b[second_vertex], edge_d[third_vertex]]
 
 

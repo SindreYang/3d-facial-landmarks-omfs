@@ -2,6 +2,7 @@
 Author: Benny
 Date: Nov 2019
 """
+
 import argparse
 import os
 from data_utils.S3DISDataLoader import ScannetDatasetWholeScene
@@ -23,9 +24,7 @@ classes = ['ceiling', 'floor', 'wall', 'beam', 'column', 'window', 'door', 'tabl
            'board', 'clutter']
 class2label = {cls: i for i, cls in enumerate(classes)}
 seg_classes = class2label
-seg_label_to_cat = {}
-for i, cat in enumerate(seg_classes.keys()):
-    seg_label_to_cat[i] = cat
+seg_label_to_cat = dict(enumerate(seg_classes.keys()))
 
 
 def parse_args():
@@ -58,8 +57,8 @@ def main(args):
 
     '''HYPER PARAMETER'''
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
-    experiment_dir = 'log/sem_seg/' + args.log_dir
-    visual_dir = experiment_dir + '/visual/'
+    experiment_dir = f'log/sem_seg/{args.log_dir}'
+    visual_dir = f'{experiment_dir}/visual/'
     visual_dir = Path(visual_dir)
     visual_dir.mkdir(exist_ok=True)
 
@@ -68,7 +67,7 @@ def main(args):
     logger = logging.getLogger("Model")
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    file_handler = logging.FileHandler('%s/eval.txt' % experiment_dir)
+    file_handler = logging.FileHandler(f'{experiment_dir}/eval.txt')
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
@@ -85,14 +84,18 @@ def main(args):
     log_string("The number of test data is: %d" % len(TEST_DATASET_WHOLE_SCENE))
 
     '''MODEL LOADING'''
-    model_name = os.listdir(experiment_dir + '/logs')[0].split('.')[0]
+    model_name = os.listdir(f'{experiment_dir}/logs')[0].split('.')[0]
     MODEL = importlib.import_module(model_name)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     classifier = MODEL.get_model(NUM_CLASSES).to(device)
     if torch.cuda.is_available():
-        checkpoint = torch.load(str(experiment_dir) + '/checkpoints/best_model.pth')
+        checkpoint = torch.load(f'{str(experiment_dir)}/checkpoints/best_model.pth')
     else:
-        checkpoint = torch.load(str(experiment_dir) + '/checkpoints/best_model.pth', map_location=torch.device('cpu'))
+        checkpoint = torch.load(
+            f'{str(experiment_dir)}/checkpoints/best_model.pth',
+            map_location=torch.device('cpu'),
+        )
+
     classifier.load_state_dict(checkpoint['model_state_dict'])
     classifier = classifier.eval()
 
@@ -113,8 +116,8 @@ def main(args):
             total_correct_class_tmp = [0 for _ in range(NUM_CLASSES)]
             total_iou_deno_class_tmp = [0 for _ in range(NUM_CLASSES)]
             if args.visual:
-                fout = open(os.path.join(visual_dir, scene_id[batch_idx] + '_pred.obj'), 'w')
-                fout_gt = open(os.path.join(visual_dir, scene_id[batch_idx] + '_gt.obj'), 'w')
+                fout = open(os.path.join(visual_dir, f'{scene_id[batch_idx]}_pred.obj'), 'w')
+                fout_gt = open(os.path.join(visual_dir, f'{scene_id[batch_idx]}_gt.obj'), 'w')
 
             whole_scene_data = TEST_DATASET_WHOLE_SCENE.scene_points_list[batch_idx]
             whole_scene_label = TEST_DATASET_WHOLE_SCENE.semantic_labels_list[batch_idx]
@@ -166,7 +169,7 @@ def main(args):
             log_string('Mean IoU of %s: %.4f' % (scene_id[batch_idx], tmp_iou))
             print('----------------------------')
 
-            filename = os.path.join(visual_dir, scene_id[batch_idx] + '.txt')
+            filename = os.path.join(visual_dir, f'{scene_id[batch_idx]}.txt')
             with open(filename, 'w') as pl_save:
                 for i in pred_label:
                     pl_save.write(str(int(i)) + '\n')

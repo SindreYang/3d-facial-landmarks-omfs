@@ -20,9 +20,11 @@ def eucl_dist(orig_x, orig_y, orig_z, target_x, target_y, target_z):
     Returns:
         distance: distance between origin and target in 3 dimensional cartesian coordinate system
     """
-    distance = math.sqrt(
-        math.pow(target_x - orig_x, 2) + math.pow(target_y - orig_y, 2) + math.pow(target_z - orig_z, 2))
-    return distance
+    return math.sqrt(
+        math.pow(target_x - orig_x, 2)
+        + math.pow(target_y - orig_y, 2)
+        + math.pow(target_z - orig_z, 2)
+    )
 
 
 def dist_between_points(pointcl, idx_origin, idx_target):
@@ -38,8 +40,9 @@ def dist_between_points(pointcl, idx_origin, idx_target):
     """
     origin = pointcl[idx_origin]
     target = pointcl[idx_target]
-    distance = eucl_dist(origin[0], origin[1], origin[2], target[0], target[1], target[2])
-    return distance
+    return eucl_dist(
+        origin[0], origin[1], origin[2], target[0], target[1], target[2]
+    )
 
 
 def closest_ldmk_dist(pcl, ldmks):
@@ -69,23 +72,21 @@ def obj_data_to_mesh3d(odata):
     lines = odata.splitlines()
 
     for line in lines:
-        slist = line.split()
-        if slist:
+        if slist := line.split():
             if slist[0] == 'v':
                 vertex = np.array(slist[1:], dtype=float)
                 vertices.append(vertex)
             elif slist[0] == 'f':
-                face = []
-                for k in range(1, len(slist)):
-                    face.append([int(s) for s in slist[k].replace('//', '/').split('/')])
+                face = [
+                    [int(s) for s in slist[k].replace('//', '/').split('/')]
+                    for k in range(1, len(slist))
+                ]
+
                 if len(face) > 3:  # triangulate the n-polyonal face, n>3
                     faces.extend(
                         [[face[0][0] - 1, face[k][0] - 1, face[k + 1][0] - 1] for k in range(1, len(face) - 1)])
                 else:
                     faces.append([face[j][0] - 1 for j in range(len(face))])
-            else:
-                pass
-
     return np.array(vertices), np.array(faces)
 
 # per file
@@ -94,7 +95,7 @@ def obj_data_to_mesh3d(odata):
 #   save points in file
 
 # per file
-for filepath in tqdm(glob.iglob(rootdir + '*/13*.obj')):
+for filepath in tqdm(glob.iglob(f'{rootdir}*/13*.obj')):
     print(filepath)
 
     with open(filepath, 'r') as file:

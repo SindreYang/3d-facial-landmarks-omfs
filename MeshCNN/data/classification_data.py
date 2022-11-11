@@ -12,9 +12,14 @@ class ClassificationData(BaseDataset):
     def __init__(self, opt):
         BaseDataset.__init__(self, opt)
         self.opt = opt
-        self.device = torch.device('cuda:{}'.format(opt.gpu_ids[0])) if opt.gpu_ids else torch.device('cpu')
+        self.device = (
+            torch.device(f'cuda:{opt.gpu_ids[0]}')
+            if opt.gpu_ids
+            else torch.device('cpu')
+        )
+
         self.root = opt.dataroot
-        self.labels = np.load(self.root + '/ldmks.pkl')
+        self.labels = np.load(f'{self.root}/ldmks.pkl')
         self.dir = os.path.join(opt.dataroot)
         self.classes, self.class_to_idx = self.find_classes(self.dir)
         self.paths = self.make_dataset_by_class(self.dir, self.class_to_idx, opt.phase)

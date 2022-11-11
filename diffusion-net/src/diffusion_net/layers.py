@@ -50,8 +50,9 @@ class LearnedTimeDiffusion(nn.Module):
 
         if x.shape[-1] != self.C_inout:
             raise ValueError(
-                "Tensor has wrong shape = {}. Last dim shape should have number of channels = {}".format(
-                    x.shape, self.C_inout))
+                f"Tensor has wrong shape = {x.shape}. Last dim shape should have number of channels = {self.C_inout}"
+            )
+
 
         if self.method == 'spectral':
 
@@ -65,7 +66,7 @@ class LearnedTimeDiffusion(nn.Module):
 
             # Transform back to per-vertex 
             x_diffuse = from_basis(x_diffuse_spec, evecs)
-            
+
         elif self.method == 'implicit_dense':
             V = x.shape[-2]
 
@@ -76,7 +77,7 @@ class LearnedTimeDiffusion(nn.Module):
 
             # Factor the system
             cholesky_factors = torch.linalg.cholesky(mat_dense)
-            
+
             # Solve the system
             rhs = x * mass.unsqueeze(-1)
             rhsT = torch.transpose(rhs, 1, 2).unsqueeze(-1)
@@ -203,9 +204,10 @@ class DiffusionNetBlock(nn.Module):
         B = x_in.shape[0] # batch dimension
         if x_in.shape[-1] != self.C_width:
             raise ValueError(
-                "Tensor has wrong shape = {}. Last dim shape should have number of channels = {}".format(
-                    x_in.shape, self.C_width))
-        
+                f"Tensor has wrong shape = {x_in.shape}. Last dim shape should have number of channels = {self.C_width}"
+            )
+
+
         # Diffusion block 
         x_diffuse = self.diffusion(x_in, L, mass, evals, evecs)
 
@@ -231,7 +233,7 @@ class DiffusionNetBlock(nn.Module):
             # Stack inputs to mlp
             feature_combined = torch.cat((x_in, x_diffuse), dim=-1)
 
-        
+
         # Apply the mlp
         x0_out = self.mlp(feature_combined)
 
@@ -244,7 +246,7 @@ class DiffusionNetBlock(nn.Module):
 class DiffusionNet(nn.Module):
 
     def __init__(self, C_in, C_out, C_width=128, N_block=4, last_activation=None, outputs_at='vertices', mlp_hidden_dims=None, dropout=True, 
-                       with_gradient_features=True, with_gradient_rotations=True, diffusion_method='spectral'):   
+                       with_gradient_features=True, with_gradient_rotations=True, diffusion_method='spectral'):
         """
         Construct a DiffusionNet.
 
@@ -278,11 +280,11 @@ class DiffusionNet(nn.Module):
         if outputs_at not in ['vertices', 'edges', 'faces']: raise ValueError("invalid setting for outputs_at")
 
         # MLP options
-        if mlp_hidden_dims == None:
+        if mlp_hidden_dims is None:
             mlp_hidden_dims = [C_width, C_width]
         self.mlp_hidden_dims = mlp_hidden_dims
         self.dropout = dropout
-        
+
         # Diffusion
         self.diffusion_method = diffusion_method
         if diffusion_method not in ['spectral', 'implicit_dense']: raise ValueError("invalid setting for diffusion_method")
@@ -290,13 +292,13 @@ class DiffusionNet(nn.Module):
         # Gradient features
         self.with_gradient_features = with_gradient_features
         self.with_gradient_rotations = with_gradient_rotations
-        
+
         ## Set up the network
 
         # First and last affine layers
         self.first_lin = nn.Linear(C_in, C_width)
         self.last_lin = nn.Linear(C_width, C_out)
-       
+
         # DiffusionNet blocks
         self.blocks = []
         for i_block in range(self.N_block):
@@ -308,7 +310,7 @@ class DiffusionNet(nn.Module):
                                       with_gradient_rotations = with_gradient_rotations)
 
             self.blocks.append(block)
-            self.add_module("block_"+str(i_block), self.blocks[-1])
+            self.add_module(f"block_{str(i_block)}", self.blocks[-1])
 
     
     def forward(self, x_in, mass, L=None, evals=None, evecs=None, gradX=None, gradY=None, edges=None, faces=None):
@@ -341,7 +343,10 @@ class DiffusionNet(nn.Module):
 
         ## Check dimensions, and append batch dimension if not given
         if x_in.shape[-1] != self.C_in: 
-            raise ValueError("DiffusionNet was constructed with C_in={}, but x_in has last dim={}".format(self.C_in,x_in.shape[-1]))
+            raise ValueError(
+                f"DiffusionNet was constructed with C_in={self.C_in}, but x_in has last dim={x_in.shape[-1]}"
+            )
+
         N = x_in.shape[-2]
         if len(x_in.shape) == 2:
             appended_batch_dim = True
@@ -359,37 +364,37 @@ class DiffusionNet(nn.Module):
 
         elif len(x_in.shape) == 3:
             appended_batch_dim = False
-        
+
         else: raise ValueError("x_in should be tensor with shape [N,C] or [B,N,C]")
-        
+
         # Apply the first linear layer
         x = self.first_lin(x_in)
-      
+
         # Apply each of the blocks
         for b in self.blocks:
             x = b(x, mass, L, evals, evecs, gradX, gradY)
-        
+
         # Apply the last linear layer
         x = self.last_lin(x)
 
         # Remap output to faces/edges if requested
         if self.outputs_at == 'vertices': 
             x_out = x
-        
+
         elif self.outputs_at == 'edges': 
             # Remap to edges
             x_gather = x.unsqueeze(-1).expand(-1, -1, -1, 2)
             edges_gather = edges.unsqueeze(2).expand(-1, -1, x.shape[-1], -1)
             xe = torch.gather(x_gather, 1, edges_gather)
             x_out = torch.mean(xe, dim=-1)
-        
+
         elif self.outputs_at == 'faces': 
             # Remap to faces
             x_gather = x.unsqueeze(-1).expand(-1, -1, -1, 3)
             faces_gather = faces.unsqueeze(2).expand(-1, -1, x.shape[-1], -1)
             xf = torch.gather(x_gather, 1, faces_gather)
             x_out = torch.mean(xf, dim=-1)
-        
+
         # Apply last nonlinearity if specified
         #if self.last_activation != None:
         #    x_out = self.last_activation(x_out)

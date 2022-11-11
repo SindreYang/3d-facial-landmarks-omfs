@@ -51,7 +51,7 @@ class BaseOptions:
             if id >= 0:
                 self.opt.gpu_ids.append(id)
         # set gpu ids
-        if len(self.opt.gpu_ids) > 0:
+        if self.opt.gpu_ids:
             torch.cuda.set_device(self.opt.gpu_ids[0])
 
         args = vars(self.opt)
@@ -70,7 +70,7 @@ class BaseOptions:
         if self.is_train:
             print('------------ Options -------------')
             for k, v in sorted(args.items()):
-                print('%s: %s' % (str(k), str(v)))
+                print(f'{str(k)}: {str(v)}')
             print('-------------- End ----------------')
 
             # save to the disk

@@ -6,10 +6,7 @@ from pointnet_utils import PointNetEncoder, feature_transform_reguliarzer
 class get_model(nn.Module):
     def __init__(self, k=40, normal_channel=True):
         super(get_model, self).__init__()
-        if normal_channel:
-            channel = 6
-        else:
-            channel = 3
+        channel = 6 if normal_channel else 3
         self.feat = PointNetEncoder(global_feat=True, feature_transform=True, channel=channel)
         self.fc1 = nn.Linear(1024, 512)
         self.fc2 = nn.Linear(512, 256)
@@ -36,5 +33,4 @@ class get_loss(torch.nn.Module):
         loss = F.nll_loss(pred, target)
         mat_diff_loss = feature_transform_reguliarzer(trans_feat)
 
-        total_loss = loss + mat_diff_loss * self.mat_diff_loss_scale
-        return total_loss
+        return loss + mat_diff_loss * self.mat_diff_loss_scale

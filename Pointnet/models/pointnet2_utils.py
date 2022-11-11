@@ -5,7 +5,7 @@ from time import time
 import numpy as np
 
 def timeit(tag, t):
-    print("{}: {}s".format(tag, time() - t))
+    print(f"{tag}: {time() - t}s")
     return time()
 
 def pc_normalize(pc):
@@ -56,8 +56,7 @@ def index_points(points, idx):
     repeat_shape = list(idx.shape)
     repeat_shape[0] = 1
     batch_indices = torch.arange(B, dtype=torch.long).to(device).view(view_shape).repeat(repeat_shape)
-    new_points = points[batch_indices, idx, :]
-    return new_points
+    return points[batch_indices, idx, :]
 
 
 def farthest_point_sample(xyz, npoint):
